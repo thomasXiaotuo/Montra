@@ -1,0 +1,24 @@
+{
+  "name": "montra",
+  "version": "1.2.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "db:init": "node scripts/init-db.mjs",
+    "package": "node scripts/package.mjs",
+    "test:browser": "node test/browser-check.mjs"
+  },
+  "dependencies": {
+    "mssql": "^12.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0"
+  },
+  "description": "Montra \u2014 Your money, your way. A local ledger with SQL Server and an integrated SQL workbench.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  }
+}
