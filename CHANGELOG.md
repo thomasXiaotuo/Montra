@@ -1,0 +1,25 @@
+# 版本记录
+
+## 1.3.1 — 2026-10-16
+
+- Linux 默认连接原生或远程 SQL Server，无需 Docker；Windows 保持无 Docker 默认配置，macOS 行为不变。
+- Linux 分发包显式设置 SQL_USE_DOCKER=0；补充 Ubuntu 22.04 x64 的原生 SQL Server 安装、Express 选择、服务管理和备份说明。
+- 增加缺失密码时也不调用 Docker 的回归验证。
+- 三平台共同核心版本同步为 1.3.1；此前提供的 meC.zip Mac 测试压缩包保留原样，不包含本次更新。
+
+## 1.3.0 — 2026-10-16
+
+- macOS：1.3.0-macos；Linux：1.3.0-linux；Windows：1.3.0-windows。
+- 新增 Linux start.sh、Windows start.cmd / 打开记账.cmd；保留两个 Mac .command 入口。
+- 三个平台共享启动逻辑：安装缺失依赖、读取自定义端口与容器名、复用已有服务、用本平台浏览器打开。
+- Windows 默认采用原生 SQL Server，无需 Docker；SQL_USE_DOCKER=0 彻底禁用 Docker 调用。
+- 远程数据库无需本机 Docker；读取项目根目录 .env，不依赖调用目录。
+- 健康接口、启动日志及界面底部显示版本。
+- 四份完整源码包（含通用 source），平台包内含对应使用说明和 release.json / VERSION。
+- 修复打包依赖固定 python3 命令、缺少 .github 导致失败，以及 ZIP 丢失 Unix 启动权限的问题。
+- 增加各平台环境、安装、连接已有/新账本、日常使用、停止、更新与迁移说明。
+- 账单结构和既有记账/SQL 功能保持兼容；不自动创建、迁移或替换个人账本。
+
+## 1.2.1
+
+已有中英文记账界面、SQL 工作台和 macOS 启动入口。

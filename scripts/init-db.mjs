@@ -1,6 +1,7 @@
 import sql from 'mssql';
 import {connectionConfig} from '../database.mjs';
-try{process.loadEnvFile('.env');}catch(error){if(error.code!=='ENOENT')throw error;}
+import {loadEnvironment} from '../runtime.mjs';
+loadEnvironment();
 const config=await connectionConfig();
 const name=config.database;
 if(!name || name.length>128)throw new Error('SQL_DATABASE 名称无效。');

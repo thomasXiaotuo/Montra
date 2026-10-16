@@ -1,12 +1,12 @@
 import http from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
-import {spawn} from 'node:child_process';
+import {loadEnvironment,appPort,version,edition,releaseVersion,openBrowser,dockerEnabled} from './runtime.mjs';
 import {detectLanguage,translate} from './public/i18n.js';
 import {UserError,validateEntry,validateFilters} from './domain.mjs';
 import {readState,insertEntry,setPassword,executeSql} from './database.mjs';
-try { process.loadEnvFile?.('.env'); } catch (error) { if (error.code!=='ENOENT') throw error; }
-const port=Number(process.env.PORT || 3210);
+loadEnvironment();
+const port=appPort();
 const origin=`http://127.0.0.1:${port}`;
 const files=new Map([['/',['index.html','text/html; charset=utf-8']],['/app.js',['app.js','text/javascript; charset=utf-8']],['/style.css',['style.css','text/css; charset=utf-8']],['/i18n.js',['i18n.js','text/javascript; charset=utf-8']]]);
 const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
@@ -32,7 +32,7 @@ export function createApp(deps={readState,insertEntry,setPassword,executeSql}, a
         if(url.pathname==='/api/entries') {const entry=validateEntry(await body(req)); return send(res,201,await deps.insertEntry(entry));}
         if(url.pathname==='/api/connect') {const data=await body(req);await deps.setPassword(data.password);return send(res,200,{ok:true});}
       }
-      if(req.method==='GET' && url.pathname==='/api/health') return send(res,200,{app:'montra',version:'1.2.1'});
+      if(req.method==='GET' && url.pathname==='/api/health') return send(res,200,{app:'montra',version,edition,releaseVersion,platform:process.platform,dockerEnabled:dockerEnabled()});
       if(req.method==='GET' && url.pathname==='/api/state') return send(res,200,await deps.readState(validateFilters(url.searchParams)));
       if(req.method==='GET' && files.has(url.pathname)) {
         const [file,type]=files.get(url.pathname);
@@ -42,11 +42,11 @@ export function createApp(deps={readState,insertEntry,setPassword,executeSql}, a
       send(res,404,{error:localize('找不到此页面。')});
     } catch(error) {
       if(error instanceof UserError) send(res,error.status,{error:localize(error.message)});
-      else send(res,503,{error:localize('数据库连接或操作失败。请确认 Docker 中的 sqlserver 已运行、jizhang 数据库和 jilu 表存在，且密码正确。')});
+      else send(res,503,{error:localize('数据库连接或操作失败。请确认配置的 SQL Server 已运行、数据库和 dbo.jilu 表存在，且密码正确。')});
     }
   });
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)) {
-  createApp().listen(port,'127.0.0.1',()=>{console.log(`Montra：${origin}\nDatabase / 数据库：${process.env.SQL_DATABASE || 'jizhang'} / dbo.jilu\nControl+C to stop / 按 Control+C 关闭服务。`);if(process.env.LEDGER_OPEN_BROWSER==='1') spawn('/usr/bin/open',[origin],{stdio:'ignore'});})
+  createApp().listen(port,'127.0.0.1',()=>{console.log(`Montra ${releaseVersion}：${origin}\nDatabase / 数据库：${process.env.SQL_DATABASE || 'jizhang'} / dbo.jilu\nControl+C to stop / 按 Control+C 关闭服务。`);if(process.env.LEDGER_OPEN_BROWSER==='1') openBrowser(origin);})
     .on('error',()=>{console.error('界面启动失败：端口可能已被占用。');process.exitCode=1;});
 }

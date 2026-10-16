@@ -1,3 +1,2 @@
-#!/bin/zsh
-# ASCII-named entry point for international users; shares the same launcher.
-exec /bin/zsh "${0:A:h}/打开记账.command"
+#!/bin/sh
+exec /bin/sh "$(dirname -- "$0")/打开记账.command"

@@ -127,3 +127,5 @@ $('language').addEventListener('change',()=>{
   toast('语言已切换');
 });
 applyStaticLanguage();
+
+api('/api/health').then(info=>{$('app-version').textContent=`Montra ${info.releaseVersion || info.version}`;$('docker-advice').hidden=!info.dockerEnabled;}).catch(()=>{});

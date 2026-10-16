@@ -1,11 +1,27 @@
 # Montra
 
+## 1.3.1 · 三平台版本
+
+| 版本 | 版本号 | 启动入口 | 从环境、安装到使用 |
+|---|---|---|---|
+| macOS | 1.3.1-macos | 打开记账.command / start.command | [macOS 使用说明](docs/macOS.md) |
+| Linux | 1.3.1-linux | sh start.sh | [Linux 使用说明](docs/Linux.md) |
+| Windows | 1.3.1-windows | 打开记账.cmd / start.cmd | [Windows 使用说明](docs/Windows.md) |
+
+**Windows 和 Linux 版默认连接原生 SQL Server，无需 Docker。分别按系统说明安装 SQL Server 并设置 SQL_PASSWORD；SQL_USE_DOCKER=0 会彻底禁用 Docker 调用。Windows 也无需 WSL。**
+
+共同核心版本是 1.3.1，平台版本号在各平台包的 VERSION、release.json、启动窗口、界面底部和 /api/health 中标识。这是需要安装 Node.js 和连接 SQL Server 的源码版本，不是免安装二进制软件。
+
+请先按自己的系统阅读对应说明。已有 SQL Server 不强制使用 Docker。复制项目不等于迁移旧账单，详见 [数据与迁移](docs/使用与数据.md)；改动记录见 [CHANGELOG.md](CHANGELOG.md)。
+
+三个入口都读取项目根目录 .env 的 PORT 和 SQL_CONTAINER。使用容器时请先自行打开 Docker；入口只安装缺失运行依赖并尝试启动已有容器，新库初始化需要单独完成。远程 SQL Server 不会尝试启动本机 Docker。
+
 *Your money, your way.*
 [English](README.en.md) | [简体中文](README.md)
 
 一个本地运行的收支记账软件：用界面快速记账，也可以在 SQL 工作台或终端写 SQL。三种方式共享 SQL Server 中同一张 `dbo.jilu` 表。
 
-**MIT 开源许可证 · Node.js 22+ · SQL Server 2022 · Mac 双击启动**
+**MIT 开源许可证 · Node.js 22+ · SQL Server 2022 · macOS / Linux / Windows 启动入口**
 
 ## 功能
 
@@ -26,15 +42,15 @@
 - [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/)，或者已有可连接的 SQL Server。
 - 默认连接 `127.0.0.1:1433`，数据库 `jizhang`，容器 `sqlserver`。
 
-Apple M 芯片运行 SQL Server 容器需要模拟 x86-64。Docker Desktop 中选择 Apple Virtualization framework 并开启 Rosetta。该组合可用于尝试本地练习，但微软不正式支持模拟环境；详见 [SQL Server 容器说明](https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-deployment?view=sql-server-ver16)。
+Apple M 芯片运行 SQL Server 容器需要模拟 x86-64。模拟是否可用取决于 Docker 和系统版本，微软不正式支持模拟环境；稳定使用建议连接另一台 x64 SQL Server。详见 [SQL Server 容器说明](https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-deployment?view=sql-server-ver16)。
 
 ## 使用现有账本
 
-下载源码并解压，双击 `打开记账.command`。首次启动会安装运行依赖，打开 Docker、启动已有 `sqlserver` 容器，并在浏览器打开 http://127.0.0.1:3210。
+下载源码并解压，双击 `打开记账.command`。先自行打开 Docker Desktop。入口首次启动会安装运行依赖、尝试启动配置的已有容器，并在浏览器打开 http://127.0.0.1:3210。
 
 使用期间保留启动时打开的终端窗口。按 Control+C 关闭界面服务，不会删除数据库。若 Mac 没有为 `.command` 保留可执行权限，可在项目目录运行 `chmod +x 打开记账.command`。
 
-也可以在 Mac、Linux 或 Windows 终端手动启动：
+仅 macOS 默认使用 Docker；其他系统默认请按上方原生数据库说明。已明确设置 SQL_USE_DOCKER=1 的 Docker 环境也可手动启动：
 
 ```sh
 npm ci --omit=dev
@@ -44,7 +60,7 @@ npm start
 
 然后打开 http://127.0.0.1:3210。
 
-已有数据不会迁移或重新创建。服务端默认从已有容器读取密码，不把密码发送给浏览器。若曾修改数据库账号密码，可在页面连接提示中输入当前密码；只保留在本次服务进程的内存中。
+已有数据不会迁移或重新创建。macOS 默认可从已有容器读取密码；Windows/Linux 默认不调用 Docker，需配置 SQL_PASSWORD。密码不会发送给浏览器。若曾修改数据库账号密码，可在页面连接提示中输入当前密码；只保留在本次服务进程的内存中。
 
 ## 从零安装（新使用者）
 
@@ -83,7 +99,7 @@ npm start
 | category | NVARCHAR(50) NOT NULL | 类别 |
 | note | NVARCHAR(200) | 可空备注 |
 
-可在 `.env` 设置 `SQL_SERVER`、`SQL_PORT`、`SQL_USER`、`SQL_DATABASE`、`SQL_PASSWORD`、`SQL_CONTAINER` 和界面 `PORT`。详细配置见 `.env.example`。Mac 双击入口默认界面端口为 3210，改变端口后请手动 `npm start` 并访问配置的新端口。
+可在 `.env` 设置 `SQL_SERVER`、`SQL_PORT`、`SQL_USER`、`SQL_DATABASE`、`SQL_PASSWORD`、`SQL_CONTAINER` 和界面 `PORT`。详细配置见 `.env.example`。三个平台的启动入口都支持 .env 的自定义 PORT，默认 3210。
 
 ## SQL 工作台
 
@@ -158,7 +174,7 @@ montra/
 
 ## 分享或发布源码
 
-源码打包需要 Python 3（只使用标准库）。运行 `npm run package` 生成 `dist/montra-1.2.1-source.zip`。打包采用固定文件白名单，不包括 `.env`、个人账单、数据库备份、截图、node_modules 或 Git 历史。解压后是一个完整项目文件夹，首次使用需要安装依赖和配置自己的数据库。
+源码打包需要 Python 3.9+（只使用标准库；普通使用不需要 Python）。运行 `npm run package` 同时生成 `dist/montra-1.3.1-source.zip`、`dist/montra-1.3.1-macos.zip`、`dist/montra-1.3.1-linux.zip`、`dist/montra-1.3.1-windows.zip`。打包采用固定文件白名单，不包括 `.env`、个人账单、数据库备份、截图、node_modules 或 Git 历史。解压后是一个完整项目文件夹，首次使用需要安装依赖和配置自己的数据库。
 
 发布到 GitHub 时上传源码文件即可，不要上传数据库、密码或账单。仓库内容由 `.gitignore` 排除本机配置与生成文件。GitHub Actions 自动执行基础测试。
 

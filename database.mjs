@@ -3,22 +3,26 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import {dockerEnabled} from './runtime.mjs';
 import { literalSearch, UserError } from './domain.mjs';
 import {splitBatches,runSql} from './sql-console.mjs';
 const exec = promisify(execFile);
 let poolPromise;
 let enteredPassword;
-const docker = existsSync(`${homedir()}/.docker/bin/docker`) ? `${homedir()}/.docker/bin/docker` : 'docker';
+const localDocker = join(homedir(), '.docker', 'bin', process.platform === 'win32' ? 'docker.exe' : 'docker');
+const docker = existsSync(localDocker) ? localDocker : 'docker';
 async function password() {
   if (enteredPassword) return enteredPassword;
   if (process.env.SQL_PASSWORD) return process.env.SQL_PASSWORD;
+  if (!dockerEnabled()) throw new UserError('无法连接数据库。请确认 SQL Server 已运行并检查 .env 配置；也可以在下方输入数据库密码重试。', 503);
   try {
-    const {stdout} = await exec(docker, ['inspect','--format','{{json .Config.Env}}',process.env.SQL_CONTAINER || 'sqlserver'], { timeout: 5000, maxBuffer: 65536 });
+    const {stdout} = await exec(docker, ['inspect','--format','{{json .Config.Env}}',process.env.SQL_CONTAINER || 'sqlserver'], { timeout: 5000, maxBuffer: 65536, windowsHide: true });
     const env = JSON.parse(stdout);
     const entry = env.find(v => v.startsWith('MSSQL_SA_PASSWORD='));
     if (entry) return entry.slice('MSSQL_SA_PASSWORD='.length);
   } catch {}
-  throw new UserError('无法连接数据库。请打开 Docker Desktop，并启动 sqlserver 容器。也可以在下方输入数据库密码重试。', 503);
+  throw new UserError('无法连接数据库。请确认 SQL Server 已运行并检查 .env 配置；也可以在下方输入数据库密码重试。', 503);
 }
 export async function connectionConfig() {
   return {server:process.env.SQL_SERVER || '127.0.0.1',port:Number(process.env.SQL_PORT || 1433),user:process.env.SQL_USER || 'sa',password:await password(),database:process.env.SQL_DATABASE || 'jizhang',connectionTimeout:7000,requestTimeout:10000,options:{encrypt:true,trustServerCertificate:true,useUTC:true},pool:{max:5,min:0,idleTimeoutMillis:30000}};
