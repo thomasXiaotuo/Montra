@@ -4,6 +4,7 @@ let language=detectLanguage(savedLanguage,navigator.languages||[navigator.langua
 const t=(key,args={})=>translate(key,args,language);
 const errorText=error=>t(messageKey(error?.message||'无法连接，请稍后重试。'));
 let lastState,lastSqlResult,lastOfflineError,formFeedback,sqlFeedback;
+let editingEntry=null,editing=false,editFeedback=null;
 function applyStaticLanguage(){
   document.documentElement.lang=localeFor(language);
   document.querySelectorAll('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
@@ -20,7 +21,13 @@ function text(tag,content,className){const el=document.createElement(tag);el.tex
 function message(key,error=false,args={}){formFeedback={key:messageKey(key),error,args};$('form-message').textContent=t(formFeedback.key,args);$('form-message').className=`form-message ${error?'error':'success'}`;}
 function toast(content){$('toast').textContent=t(messageKey(content));$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3500);}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{...options.headers,'X-Ledger-Language':language}});let data;try{data=await res.json();}catch{throw new Error(t('服务暂时不可用，请确认记账程序仍在运行。'));}if(!res.ok)throw new Error(data.error||t('操作失败，请重试。'));return data;}
-function saveAvailability(){$('save').disabled=!connected||saving;}
+function saveAvailability(){
+  $('save').disabled=!connected||saving;
+  $('edit-save').disabled=!connected||editing;
+  $('edit-save').textContent=editing?t('正在保存…'):t('保存修改');
+  $('edit-fields').disabled=editing;$('edit-cancel').disabled=editing;
+  document.querySelectorAll('.edit-entry').forEach(button=>button.disabled=!connected);
+}
 function showOffline(error){lastOfflineError=error;connected=false;saveAvailability();$('connection').textContent=t('连接中断 · 数据可能未更新');$('connection').className='connection failed';$('offline').hidden=false;$('connection-error').textContent=errorText(error);}
 function params(){return new URLSearchParams({today:localToday(),month:$('month').value,type:$('filter-type').value,category:$('filter-category').value,q:$('search').value,page:String(page),all:$('all-months').checked?'1':'0'});}
 function render(data){
@@ -38,7 +45,7 @@ function render(data){
   $('category-chips').replaceChildren(...chips.map(c=>{const b=text('button',c,'chip');b.type='button';b.addEventListener('click',()=>{$('category').value=c;$('amount').focus();});return b;}));
   $('records').replaceChildren();
   if(!data.rows.length){const tr=document.createElement('tr'),td=text('td',t('这里还没有账单。换个筛选条件，或在左边记下第一笔。'),'empty-cell');td.colSpan=4;tr.append(td);$('records').append(tr);}
-  for(const r of data.rows){const tr=document.createElement('tr'),detail=document.createElement('td');detail.append(text('div',formatDate(r.riqi),'date'),text('div',r.note||t('无备注'),'note'),text('div',`#${r.id}`,'record-id'));const cat=document.createElement('td');const tag=text('span',r.category,'category-tag');tag.title=r.category;cat.append(tag);const type=document.createElement('td');type.append(text('span',r.type==='i'?t('收入'):t('支出'),r.type==='i'?'badge income':'badge'));const amt=text('td',`${r.type==='i'?'+':'−'}${money(r.amount)}`,`money ${r.type==='i'?'amount-income':'amount-expense'}`);tr.append(detail,cat,type,amt);$('records').append(tr);}
+  for(const r of data.rows){const tr=document.createElement('tr'),detail=document.createElement('td');detail.append(text('div',formatDate(r.riqi),'date'),text('div',r.note||t('无备注'),'note'));const actions=text('div','','record-actions');const edit=text('button',t('编辑'),'secondary edit-entry');edit.type='button';edit.dataset.entryId=r.id;edit.setAttribute('aria-label',t('编辑账单 #{id}',{id:r.id}));edit.addEventListener('click',()=>openEdit(r));actions.append(text('div',`#${r.id}`,'record-id'),edit);detail.append(actions);const cat=document.createElement('td');const tag=text('span',r.category,'category-tag');tag.title=r.category;cat.append(tag);const type=document.createElement('td');type.append(text('span',r.type==='i'?t('收入'):t('支出'),r.type==='i'?'badge income':'badge'));const amt=text('td',`${r.type==='i'?'+':'−'}${money(r.amount)}`,`money ${r.type==='i'?'amount-income':'amount-expense'}`);tr.append(detail,cat,type,amt);$('records').append(tr);}
   $('record-count').textContent=t('{count} 笔',{count:data.total});$('page-info').textContent=t('第 {page} 页 / {pages} 页 · 每页 50 笔',{page,pages:Math.max(1,Math.ceil(data.total/50))});
   $('page-prev').disabled=page<=1;$('page-next').disabled=page*50>=data.total;
   const scopes=[$('all-months').checked?t('所有月份'):month,{'':t('全部收支'),i:t('收入'),e:t('支出')}[$('filter-type').value],chosen||t('全部类别')];if($('search').value)scopes.push(t('搜索：{query}',{query:$('search').value}));$('filter-description').textContent=scopes.join(' · ');
@@ -70,6 +77,35 @@ $('prev-month').addEventListener('click',()=>shiftMonth(-1));$('next-month').add
 $('page-prev').addEventListener('click',()=>{page=Math.max(1,page-1);refresh();});$('page-next').addEventListener('click',()=>{page++;refresh();});
 $('entry-form').addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();$('entry-form').requestSubmit();}});
 $('entry-form').elements.type.forEach(r=>r.addEventListener('change',refresh));
+function editMessage(key,args={}){
+  editFeedback={key:messageKey(key),args};$('edit-message').textContent=t(editFeedback.key,args);
+}
+function openEdit(row){
+  if(!connected||editing)return;
+  editingEntry={id:row.id,riqi:row.riqi,type:row.type,amount:row.amount,category:row.category,note:row.note??null};
+  $('edit-title').textContent=t('修改账单 #{id}',{id:row.id});
+  $('edit-form').elements.type.value=row.type;
+  for(const [field,value]of [['date',row.riqi],['amount',row.amount],['category',row.category],['note',row.note??'']])$(`edit-${field}`).value=value;
+  editMessage('');saveAvailability();$('edit-dialog').showModal();$('edit-amount').focus();
+}
+$('edit-cancel').addEventListener('click',()=>{if(!editing)$('edit-dialog').close();});
+$('edit-dialog').addEventListener('cancel',e=>{if(editing)e.preventDefault();});
+$('edit-dialog').addEventListener('close',()=>{editingEntry=null;editFeedback=null;});
+$('edit-form').addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();$('edit-form').requestSubmit();}});
+$('edit-form').addEventListener('submit',async e=>{
+  e.preventDefault();if(!editingEntry||editing||!connected)return;
+  const amount=$('edit-amount').value.trim();
+  if(!/^\d{1,8}(\.\d{1,2})?$/.test(amount)||Number(amount)<=0){editMessage('金额必须大于零，最多两位小数。');$('edit-amount').focus();return;}
+  if(!$('edit-date').value){editMessage('请选择有效日期。');$('edit-date').focus();return;}
+  if(!$('edit-category').value.trim()){editMessage('请填写类别。');$('edit-category').focus();return;}
+  const payload={riqi:$('edit-date').value,type:$('edit-form').elements.type.value,amount,category:$('edit-category').value.trim(),note:$('edit-note').value.trim(),original:editingEntry};
+  editing=true;saveAvailability();editMessage('');
+  try{
+    await api(`/api/entries/${editingEntry.id}`,{method:'POST',headers:{'Content-Type':'application/json','X-Ledger-Request':'1'},body:JSON.stringify(payload)});
+    $('edit-dialog').close();toast('账单修改已保存');await refresh();
+  }catch(error){editMessage('修改结果未确认：{error} 请关闭编辑并刷新账单核对后再试。',{error:errorText(error)});}
+  finally{editing=false;saveAvailability();}
+});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
 setInterval(()=>{if(!document.hidden)refresh();},10000);refresh();
 
@@ -123,6 +159,9 @@ $('language').addEventListener('change',()=>{
   if(lastSqlResult)renderSql(lastSqlResult);
   else if(sqlFeedback){const f=sqlFeedback;const args={...f.args};if(args.error)args.error=t(messageKey(args.error));setSqlStatus(f.key,f.error,args);}
   $('save').textContent=saving?t('正在保存…'):t('＋ 保存账单');
+  if(editingEntry)$('edit-title').textContent=t('修改账单 #{id}',{id:editingEntry.id});
+  if(editFeedback){const f=editFeedback;const args={...f.args};if(args.error)args.error=t(messageKey(args.error));editMessage(f.key,args);}
+  saveAvailability();
   $('sql-run').textContent=sqlRunning?t('正在执行…'):t('▶ 执行 SQL');
   toast('语言已切换');
 });

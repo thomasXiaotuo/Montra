@@ -1,11 +1,12 @@
 import {chromium,webkit} from '@playwright/test';
 import assert from 'node:assert/strict';
 import {createApp} from '../server.mjs';
-import {validateEntry} from '../domain.mjs';
+import {validateEntry,UserError} from '../domain.mjs';
 let records=[{id:1,riqi:'2026-10-01',type:'e',amount:'14.48',category:'eat',note:'Lunch'}, {id:2,riqi:'2026-10-01',type:'i',amount:'3000.00',category:'salary',note:'Work'}, {id:3,riqi:'2026-09-01',type:'e',amount:'100.00',category:'shop',note:'Previous month'}, {id:4,riqi:'2026-10-31',type:'e',amount:'20.00',category:'future',note:'Future record'}, {id:5,riqi:'2026-10-02',type:'e',amount:'5.00',category:'other',note:'<img src=x onerror=alert(1)>'}];
 const cents=r=>Math.round(Number(r.amount)*100);
 const decimal=n=>(n/100).toFixed(2);
 let fail=false;
+let editFail=false,updates=0;
 const server=createApp({
   readState:async f=>{
     if(fail)throw new Error('offline');
@@ -18,6 +19,12 @@ const server=createApp({
     return {summary:{income:decimal(income),expense:decimal(expense),net:decimal(income-expense)},allNet,categories:[...new Set(records.map(r=>r.category))],breakdown:[...groups].map(([category,n])=>({category,amount:decimal(n)})),rows:filtered.slice((f.page-1)*50,f.page*50),total:filtered.length,page:f.page,month:f.month,updatedAt:new Date().toISOString()};
   },
   insertEntry:async entry=>{validateEntry(entry);await new Promise(r=>setTimeout(r,200));const row={id:Math.max(...records.map(r=>r.id))+1,...entry};records.push(row);return {id:row.id};},setPassword:async()=>{},
+  updateEntry:async(id,entry,original)=>{
+    if(editFail)throw new Error('offline');
+    const row=records.find(r=>r.id===id);
+    if(!row||Object.keys(original).some(k=>String(row[k])!==String(original[k])))throw new UserError('账单已被修改或删除，请刷新后重新编辑。',409);
+    updates++;await new Promise(r=>setTimeout(r,200));Object.assign(row,entry);return {id};
+  },
   executeSql:async code=>{
     if(code.includes('BROKEN'))return{ok:false,recordsets:[],messages:[],rowsAffected:[],error:{message:'Incorrect syntax',line:1,batch:1},elapsedMs:2,truncated:false};
     return{ok:true,recordsets:[{batch:1,columns:['result'],rows:[['2']],rowCount:1}],messages:[],rowsAffected:[{batch:1,count:1}],error:null,elapsedMs:1,truncated:false};
@@ -78,10 +85,46 @@ try{
   assert.match(await page.inputValue('#sql-code'),/Edit the date/); // Changing language preserves SQL draft.
   await page.reload();await page.waitForFunction(()=>document.getElementById('connection').textContent.includes('账本已连接'));
   assert.equal(await page.inputValue('#language'),'zh');
+  // Editing is separate from the add-entry draft and never creates a new row.
+  await page.fill('#amount','22.22');await page.fill('#note','保留新增草稿');
+  const editOne=()=>page.locator('.edit-entry[data-entry-id="1"]').click();
+  await editOne();assert.equal(await page.inputValue('#edit-amount'),'14.48');
+  await page.fill('#edit-note','取消这次修改');await page.click('#edit-cancel');
+  assert.equal(records[0].note,'Lunch');assert.equal(updates,0);
+  await editOne();await page.fill('#edit-amount','-1');await page.click('#edit-save');
+  assert.match(await page.locator('#edit-message').textContent(),/金额必须/);assert.equal(updates,0);
+  await page.fill('#edit-amount','16.75');await page.fill('#edit-date','2026-09-03');
+  await page.locator('#edit-form input[value="i"]').check();
+  await page.fill('#edit-category','修正类别');await page.fill('#edit-note','修改 <img src=x>');
+  await page.locator('#edit-save').dblclick();await page.waitForFunction(()=>!document.getElementById('edit-dialog').open);
+  await page.waitForFunction(()=>document.getElementById('expense').textContent==='15.25');
+  assert.equal(updates,1);assert.equal(records.length,7);
+  assert.deepEqual(records[0],{id:1,riqi:'2026-09-03',type:'i',amount:'16.75',category:'修正类别',note:'修改 <img src=x>'});
+  assert.equal(await page.inputValue('#amount'),'22.22');assert.equal(await page.inputValue('#note'),'保留新增草稿');
+  assert.equal(await page.locator('.edit-entry[data-entry-id="1"]').count(),0);
+  await page.locator('#all-months').check();await page.waitForSelector('.edit-entry[data-entry-id="1"]');
+  await editOne();await page.locator('#edit-note').press('Escape');
+  assert.equal(await page.locator('#edit-dialog').evaluate(el=>el.open),false);
+  await page.selectOption('#language','en');await editOne();
+  assert.equal(await page.locator('#edit-title').textContent(),'Edit entry #1');
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.locator('#edit-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));
+  await page.screenshot({path:'test-results/edit-mobile.png',fullPage:false});
+  editFail=true;await page.fill('#edit-note','保留失败草稿');await page.click('#edit-save');
+  await page.waitForFunction(()=>document.getElementById('edit-message').textContent.includes('Update not confirmed'));
+  assert.equal(await page.inputValue('#edit-note'),'保留失败草稿');assert.equal(updates,1);
+  editFail=false;await page.click('#edit-cancel');
+  await page.selectOption('#language','zh');await editOne();
+  records[0].note='外部 SQL 已修改';await page.click('#edit-save');
+  await page.waitForFunction(()=>document.getElementById('edit-message').textContent.includes('已被修改或删除'));
+  assert.equal(records[0].note,'外部 SQL 已修改');assert.equal(updates,1);
+  await page.click('#edit-cancel');await page.click('#refresh');
+  await page.waitForFunction(()=>document.getElementById('records').textContent.includes('外部 SQL 已修改'));
+  assert.equal(await page.locator('#records img').count(),0);
   const intlContext=await browser.newContext({viewport:{width:1440,height:1100},locale:'fr-FR'});
   const intlPage=await intlContext.newPage();await intlPage.goto('http://127.0.0.1:3212');
   await intlPage.waitForFunction(()=>document.documentElement.lang==='en-US');
   await intlPage.screenshot({path:'test-results/english-desktop.png',fullPage:false});
   await intlContext.close();
-  assert.deepEqual(errors,[]);console.log('PASS: monthly totals, future-date exclusion, category filter, literal text, one save on double click, SQL polling, search, month change, mobile layout, offline state, SQL templates, keyboard execution, results, error lines, bilingual switching, preserved drafts, stored preference and English fallback.');
+  assert.deepEqual(errors,[]);console.log('PASS: ledger/SQL/i18n flows; edit all fields, cancel/Escape, validation, single update on double click, month movement and totals, preserved add draft, English/mobile editor, failed-save draft and external-write conflict.');
 }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}

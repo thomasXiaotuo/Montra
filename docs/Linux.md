@@ -1,8 +1,8 @@
 # Montra Linux 使用说明（无需 Docker）
 
-版本号：**1.3.1-linux**；共同核心版本：**1.3.1**。Linux 版默认直接连接原生或远程 SQL Server，不需要安装或运行 Docker。与 Windows/macOS 版共享记账和 SQL 工作台功能。
+版本号：**1.4.0-linux**；共同核心版本：**1.4.0**。Linux 版默认直接连接原生或远程 SQL Server，不需要安装或运行 Docker。与 Windows/macOS 版共享记账和 SQL 工作台功能。
 
-这是需要 Node.js 与数据库的源码版本，并非免安装二进制软件。完整解压 montra-1.3.1-linux.zip，首次安装需要联网。不要从其他系统复制 node_modules。
+这是需要 Node.js 与数据库的源码版本，并非免安装二进制软件。完整解压 montra-1.4.0-linux.zip，首次安装需要联网。不要从其他系统复制 node_modules。
 
 ## 一、环境要求
 
@@ -58,7 +58,7 @@ sudo systemctl restart mssql-server
 进入完整解压目录（替换为实际路径），首次创建配置：
 
 ```sh
-cd "/你的路径/montra-1.3.1-linux"
+cd "/你的路径/montra-1.4.0-linux"
 test -f .env || cp .env.example .env
 nano .env
 ```
@@ -135,7 +135,7 @@ EXIT
 2. 通过月份、类别、收支类型或搜索框查找记录。“所有月份”可以查看跨月记录；账单每页 50 笔。
 3. 页面右上角可以切换中文/English。保存后刷新统计；每 10 秒自动同步数据库变化。
 4. 下方 SQL 工作台可以执行 `SELECT` 查询，按 ⌘/Ctrl+Enter 执行。示例只填入编辑器，不自动执行。
-5. 现有界面通过 SQL 工作台修改记录：先查询并确认 `id`，再执行如 `UPDATE dbo.jilu SET note=N'修正备注' WHERE id=123;`。把 123 换成实际编号，操作前先备份。当前表单用于新增记录，没有逐行编辑按钮。
+5. 在账单明细中点击对应记录的“编辑”，修改日期、收入/支出、金额、类别或备注，点击“保存修改”（或 ⌘/Ctrl+Enter）即可更新原记录，列表和统计自动刷新。点击“取消”或按 Esc 放弃修改，不影响左侧新增表单。若记录在编辑期间被其他窗口或 SQL 修改/删除，会提示刷新后重新编辑，避免覆盖新内容。
 6. 月结余和累计盈亏是已录入的收入减支出，统计截至今天；未来日期的记录不计入截至今天的汇总。金额不自动换汇，也不包含记账前的银行余额。
 
 使用期间保持启动窗口打开。停止网页服务按 Ctrl+C，不删除账单。SQL Server 作为系统服务运行；按需用 sudo systemctl stop mssql-server 暂停服务，这不会删除账单。

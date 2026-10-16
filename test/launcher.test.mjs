@@ -15,7 +15,8 @@ test('platform entry works from another directory with Chinese/spaces, loads .en
   await writeFile(join(fixture,'node_modules','mssql','package.json'),'{}');
   await writeFile(join(fixture,'package.json'),'{"version":"1.3.0","type":"module"}');
   await writeFile(join(fixture,'.env'),'PORT=49876\nSQL_SERVER=example.invalid\nSQL_CONTAINER=custom-ledger\nMONTRA_FIXTURE_CONFIG=from-project-env\n');
-  for(const name of ['runtime.mjs','scripts/launch.mjs',process.platform==='win32'?'start.cmd':'start.sh'])await copyFile(new URL(`../${name}`,import.meta.url),join(fixture,name));
+  const launchers=process.platform==='win32'?['start.cmd']:process.platform==='darwin'?['start.command','打开记账.command']:['start.sh'];
+  for(const name of ['runtime.mjs','scripts/launch.mjs',...launchers])await copyFile(new URL(`../${name}`,import.meta.url),join(fixture,name));
   const resultPath=join(fixture,'result.json');
   await writeFile(join(fixture,'server.mjs'),`import {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({cwd:process.cwd(),port:process.env.PORT,container:process.env.SQL_CONTAINER,config:process.env.MONTRA_FIXTURE_CONFIG}));process.exitCode=Number(process.env.MONTRA_FIXTURE_EXIT||0);`);
   const env={...process.env,PORT:'49876',SQL_SERVER:'example.invalid',LEDGER_OPEN_BROWSER:'0'};
@@ -23,7 +24,7 @@ test('platform entry works from another directory with Chinese/spaces, loads .en
   delete env.MONTRA_FIXTURE_CONFIG;
   const entry=process.platform==='win32'
     ? [process.env.ComSpec||'cmd.exe',['/d','/s','/c',`""${join(fixture,'start.cmd')}""`]]
-    : ['/bin/sh',[join(fixture,'start.sh')]];
+    : ['/bin/sh',[join(fixture,launchers[0])]];
   const run=()=>{
     const result=promisify(execFile)(...entry,{cwd:tmpdir(),env,timeout:15000,windowsVerbatimArguments:process.platform==='win32'});
     result.child.stdin.end();

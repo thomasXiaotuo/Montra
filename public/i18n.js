@@ -1,6 +1,18 @@
 // Shared UI and application-message dictionary. Ledger values and SQL engine messages are never translated.
 export const messages = {
   "zh": {
+    "编辑": "编辑",
+    "编辑账单 #{id}": "编辑账单 #{id}",
+    "修改账单": "修改账单",
+    "修改账单 #{id}": "修改账单 #{id}",
+    "修改后会更新原记录及相关统计。": "修改后会更新原记录及相关统计。",
+    "取消": "取消",
+    "保存修改": "保存修改",
+    "账单修改已保存": "账单修改已保存",
+    "修改结果未确认：{error} 请关闭编辑并刷新账单核对后再试。": "修改结果未确认：{error} 请关闭编辑并刷新账单核对后再试。",
+    "账单编号无效。": "账单编号无效。",
+    "原账单信息无效，请刷新后重新编辑。": "原账单信息无效，请刷新后重新编辑。",
+    "账单已被修改或删除，请刷新后重新编辑。": "账单已被修改或删除，请刷新后重新编辑。",
     "我的账本": "我的账本",
     "收支概览": "收支概览",
     "记一笔": "记一笔",
@@ -164,6 +176,18 @@ export const messages = {
     "brandTagline": "Your money, your way."
   },
   "en": {
+    "编辑": "Edit",
+    "编辑账单 #{id}": "Edit entry #{id}",
+    "修改账单": "Edit entry",
+    "修改账单 #{id}": "Edit entry #{id}",
+    "修改后会更新原记录及相关统计。": "Changes update the existing entry and its totals.",
+    "取消": "Cancel",
+    "保存修改": "Save changes",
+    "账单修改已保存": "Entry changes saved",
+    "修改结果未确认：{error} 请关闭编辑并刷新账单核对后再试。": "Update not confirmed: {error} Close the editor and refresh to check the entry before trying again.",
+    "账单编号无效。": "Invalid entry ID.",
+    "原账单信息无效，请刷新后重新编辑。": "The original entry is invalid. Refresh and reopen the editor.",
+    "账单已被修改或删除，请刷新后重新编辑。": "This entry has changed or was deleted. Refresh and reopen the editor.",
     "我的账本": "MY LEDGER",
     "收支概览": "Overview",
     "记一笔": "Add entry",

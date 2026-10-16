@@ -1,16 +1,16 @@
 # Montra
 
-## 1.3.1 · 三平台版本
+## 1.4.0 · 三平台版本
 
 | 版本 | 版本号 | 启动入口 | 从环境、安装到使用 |
 |---|---|---|---|
-| macOS | 1.3.1-macos | 打开记账.command / start.command | [macOS 使用说明](docs/macOS.md) |
-| Linux | 1.3.1-linux | sh start.sh | [Linux 使用说明](docs/Linux.md) |
-| Windows | 1.3.1-windows | 打开记账.cmd / start.cmd | [Windows 使用说明](docs/Windows.md) |
+| macOS | 1.4.0-macos | 打开记账.command / start.command | [macOS 使用说明](docs/macOS.md) |
+| Linux | 1.4.0-linux | sh start.sh | [Linux 使用说明](docs/Linux.md) |
+| Windows | 1.4.0-windows | 打开记账.cmd / start.cmd | [Windows 使用说明](docs/Windows.md) |
 
 **Windows 和 Linux 版默认连接原生 SQL Server，无需 Docker。分别按系统说明安装 SQL Server 并设置 SQL_PASSWORD；SQL_USE_DOCKER=0 会彻底禁用 Docker 调用。Windows 也无需 WSL。**
 
-共同核心版本是 1.3.1，平台版本号在各平台包的 VERSION、release.json、启动窗口、界面底部和 /api/health 中标识。这是需要安装 Node.js 和连接 SQL Server 的源码版本，不是免安装二进制软件。
+共同核心版本是 1.4.0，平台版本号在各平台包的 VERSION、release.json、启动窗口、界面底部和 /api/health 中标识。这是需要安装 Node.js 和连接 SQL Server 的源码版本，不是免安装二进制软件。
 
 请先按自己的系统阅读对应说明。已有 SQL Server 不强制使用 Docker。复制项目不等于迁移旧账单，详见 [数据与迁移](docs/使用与数据.md)；改动记录见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -30,6 +30,7 @@
 - 快速记录收入、支出、日期、类别和备注；快捷类别和键盘保存。
 - 本月截至今天的收入、支出、结余；所有月份截至今天的累计盈亏。
 - 切换月份，按类别、收支类型和备注搜索；账单分页与支出类别分布。
+- 账单逐行编辑：修改日期、收入/支出、金额、类别和备注，保存后同步更新统计；支持取消与并发冲突提示。
 - 保存后立即更新；每 10 秒同步终端对数据库的修改。
 - 内置 SQL 工作台：编辑代码、⌘ / Ctrl + Enter 执行、支持 GO 分批、多结果表格、PRINT、影响行数与报错行号。
 - SQL 示例只填入编辑器，不自动执行。使用字符串值展示结果，不执行结果中的 HTML。
@@ -183,7 +184,7 @@ montra/
 
 ## 分享或发布源码
 
-源码打包需要 Python 3.9+（只使用标准库；普通使用不需要 Python）。运行 `npm run package` 同时生成 `dist/montra-1.3.1-source.zip`、`dist/montra-1.3.1-macos.zip`、`dist/montra-1.3.1-linux.zip`、`dist/montra-1.3.1-windows.zip`。打包采用固定文件白名单，不包括 `.env`、个人账单、数据库备份、截图、node_modules 或 Git 历史。解压后是一个完整项目文件夹，首次使用需要安装依赖和配置自己的数据库。
+源码打包需要 Python 3.9+（只使用标准库；普通使用不需要 Python）。运行 `npm run package` 同时生成 `dist/montra-1.4.0-source.zip`、`dist/montra-1.4.0-macos.zip`、`dist/montra-1.4.0-linux.zip`、`dist/montra-1.4.0-windows.zip`。打包采用固定文件白名单，不包括 `.env`、个人账单、数据库备份、截图、node_modules 或 Git 历史。解压后是一个完整项目文件夹，首次使用需要安装依赖和配置自己的数据库。
 
 发布到 GitHub 时上传源码文件即可，不要上传数据库、密码或账单。仓库内容由 `.gitignore` 排除本机配置与生成文件。GitHub Actions 自动执行基础测试。
 
