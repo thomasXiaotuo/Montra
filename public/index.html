@@ -23,6 +23,12 @@
 <article class="stat total"><div class="stat-label"><span class="i18n-text" data-i18n="累计盈亏">累计盈亏</span><span class="stat-icon">∑</span></div><strong id="all-net">—</strong><small data-i18n="所有月份截至今天的收支差额">所有月份截至今天的收支差额</small></article>
 </section>
 <section class="offline" hidden="" id="offline"><div><strong data-i18n="账本暂时没有连接上">账本暂时没有连接上</strong><p id="connection-error"></p><p><span class="i18n-text" data-i18n="先打开 Docker Desktop，再在终端运行">先打开 Docker Desktop，再在终端运行</span><code>docker start sqlserver</code><span class="i18n-text" data-i18n="，然后点“刷新”。">，然后点“刷新”。</span></p></div><form id="connect-form"><label data-i18n="需要重新连接？输入原数据库密码" for="password">需要重新连接？输入原数据库密码</label><div class="connect-fields"><input autocomplete="off" data-i18n-placeholder="密码仅用于本次连接" id="password" placeholder="密码仅用于本次连接" type="password"/><button class="secondary" data-i18n="连接" id="connect-button" type="submit">连接</button></div></form></section>
+<section class="card calendar-card" id="calendar-card" aria-labelledby="calendar-heading">
+<div class="card-heading"><div><span class="eyebrow">MONTHLY CALENDAR</span><h2 id="calendar-heading" data-i18n="收支日历">收支日历</h2></div><span id="calendar-month" class="calendar-month"></span></div>
+<div class="calendar-totals"><div><span data-i18n="整月总支出">整月总支出</span><strong id="calendar-expense">—</strong></div><div><span data-i18n="整月总收入">整月总收入</span><strong id="calendar-income">—</strong></div></div>
+<p class="muted small" data-i18n="显示所选月份的全部记录，含未来日期；不受账单筛选影响。">显示所选月份的全部记录，含未来日期；不受账单筛选影响。</p>
+<div class="calendar-scroll" tabindex="0" data-i18n-aria-label="每日收入与支出"><div id="calendar-grid" class="calendar-grid"></div></div>
+</section>
 <section class="workspace">
 <div class="entry-column">
 <article class="card entry-card" id="entry-card"><div class="card-heading"><div><span class="eyebrow" data-i18n="QUICK ENTRY">QUICK ENTRY</span><h2 data-i18n="记一笔">记一笔</h2></div><span class="round-icon">＋</span></div>
@@ -61,4 +67,15 @@ ORDER BY riqi DESC, id DESC;</textarea>
 </section>
 <footer><span data-i18n="金额沿用原账本单位，不进行汇率换算。结余不包含记账前已有的余额。">金额沿用原账本单位，不进行汇率换算。结余不包含记账前已有的余额。</span><span data-i18n="每 10 秒自动同步" id="updated">每 10 秒自动同步</span></footer>
 </main><div aria-live="polite" hidden="" id="toast" role="status"></div><script src="/app.js" type="module"></script>
+<dialog id="edit-dialog" aria-labelledby="edit-title">
+<form id="edit-form" novalidate>
+<h2 id="edit-title"></h2><p class="muted small" data-i18n="修改后点击保存，取消不会更改账单。"></p>
+<label class="field" for="edit-type"><span data-i18n="收支类型"></span><select id="edit-type"><option value="e" data-i18n="支出"></option><option value="i" data-i18n="收入"></option></select></label>
+<label class="field" for="edit-amount"><span data-i18n="金额">金额</span><input id="edit-amount" inputmode="decimal" maxlength="11"/></label>
+<label class="field" for="edit-date"><span data-i18n="日期">日期</span><input id="edit-date" type="date" required/></label>
+<label class="field" for="edit-category"><span data-i18n="类别">类别</span><input id="edit-category" maxlength="50" list="category-list"/></label>
+<label class="field" for="edit-note"><span data-i18n="备注">备注</span><input id="edit-note" maxlength="200"/></label>
+<p id="edit-message" class="form-message error" role="alert"></p>
+<div class="edit-actions"><button id="edit-cancel" class="secondary" type="button" data-i18n="取消">取消</button><button id="edit-save" class="primary" type="submit" data-i18n="保存修改">保存修改</button></div>
+</form></dialog>
 </body></html>

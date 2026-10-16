@@ -1,6 +1,22 @@
 // Shared UI and application-message dictionary. Ledger values and SQL engine messages are never translated.
 export const messages = {
   "zh": {
+"收支日历": "收支日历",
+"整月总支出": "整月总支出",
+"整月总收入": "整月总收入",
+"显示所选月份的全部记录，含未来日期；不受账单筛选影响。": "显示所选月份的全部记录，含未来日期；不受账单筛选影响。",
+"每日收入与支出": "每日收入与支出",
+"今天": "今天",
+
+"编辑": "编辑",
+"编辑账单 #{id}": "编辑账单 #{id}",
+"取消": "取消",
+"保存修改": "保存修改",
+"修改后点击保存，取消不会更改账单。": "修改后点击保存，取消不会更改账单。",
+"账单修改已保存": "账单修改已保存",
+"账单编号无效。": "账单编号无效。",
+"账单已被修改或删除，请取消后刷新，再重新编辑。": "账单已被修改或删除，请取消后刷新，再重新编辑。",
+
     "我的账本": "我的账本",
     "收支概览": "收支概览",
     "记一笔": "记一笔",
@@ -164,6 +180,22 @@ export const messages = {
     "brandTagline": "Your money, your way."
   },
   "en": {
+"收支日历": "Income & expense calendar",
+"整月总支出": "Full-month expenses",
+"整月总收入": "Full-month income",
+"显示所选月份的全部记录，含未来日期；不受账单筛选影响。": "All records for the selected month, including future dates. Transaction filters do not affect this calendar.",
+"每日收入与支出": "Daily income and expenses",
+"今天": "Today",
+
+"编辑": "Edit",
+"编辑账单 #{id}": "Edit transaction #{id}",
+"取消": "Cancel",
+"保存修改": "Save changes",
+"修改后点击保存，取消不会更改账单。": "Save your changes, or cancel to leave the transaction unchanged.",
+"账单修改已保存": "Transaction changes saved",
+"账单编号无效。": "Invalid transaction ID.",
+"账单已被修改或删除，请取消后刷新，再重新编辑。": "This transaction was changed or deleted. Cancel, refresh, and open it again.",
+
     "我的账本": "MY LEDGER",
     "收支概览": "Overview",
     "记一笔": "Add entry",
