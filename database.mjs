@@ -64,11 +64,16 @@ export async function readState(f) {
     AND (@type='' OR type=@type) AND (@category='' OR category=@category)
     AND (category LIKE @q ESCAPE '~' OR COALESCE(note,N'') LIKE @q ESCAPE '~')
     ORDER BY riqi DESC,id DESC OFFSET @offset ROWS FETCH NEXT 50 ROWS ONLY;
+    SELECT CONVERT(char(10),riqi,23) AS riqi,
+      CONVERT(varchar(50),SUM(CASE WHEN type='i' THEN amount ELSE 0 END)) AS income,
+      CONVERT(varchar(50),SUM(CASE WHEN type='e' THEN amount ELSE 0 END)) AS expense
+    FROM dbo.jilu WHERE riqi >= CONVERT(date,@start) AND riqi < CONVERT(date,@end)
+    GROUP BY riqi ORDER BY riqi;
   `);
   const rows = result.recordsets[4];
   return {database:process.env.SQL_DATABASE || 'jizhang',summary:result.recordsets[0][0], allNet:result.recordsets[1][0].net,
     categories:result.recordsets[2].map(r=>r.category),breakdown:result.recordsets[3],
-    rows,total:rows[0]?.total_count ?? 0,page:f.page,month:f.month,updatedAt:new Date().toISOString()};
+    daily:result.recordsets[5],rows,total:rows[0]?.total_count ?? 0,page:f.page,month:f.month,updatedAt:new Date().toISOString()};
 }
 export async function insertEntry(entry) {
   const pool = await getPool();
@@ -92,4 +97,25 @@ export async function executeSql(code) {
     await pool.connect();
     return await runSql(pool,batches);
   } finally { if (pool) await pool.close().catch(()=>{}); consoleBusy = false; }
+}
+
+// Compare the original values atomically so SQL or another window cannot be overwritten.
+export async function updateEntry(id, entry, original) {
+  const pool = await getPool();
+  const request=pool.request().input('id',sql.Int,id);
+  for(const [prefix,row] of [['new',entry],['old',original]]) {
+    request.input(prefix+'Date',sql.VarChar(10),row.riqi)
+      .input(prefix+'Type',sql.VarChar(1),row.type)
+      .input(prefix+'Amount',sql.Decimal(10,2),Number(row.amount))
+      .input(prefix+'Category',sql.NVarChar(50),row.category)
+      .input(prefix+'Note',sql.NVarChar(200),row.note ?? null);
+  }
+  const result=await request.query(`UPDATE dbo.jilu
+    SET riqi=CONVERT(date,@newDate),type=@newType,amount=@newAmount,category=@newCategory,note=@newNote
+    OUTPUT INSERTED.id
+    WHERE id=@id AND riqi=CONVERT(date,@oldDate) AND type=@oldType AND amount=@oldAmount
+    AND CONVERT(varbinary(max),category)=CONVERT(varbinary(max),@oldCategory)
+    AND ((note IS NULL AND @oldNote IS NULL) OR CONVERT(varbinary(max),note)=CONVERT(varbinary(max),@oldNote));`);
+  if(!result.recordset.length) throw new UserError('账单已被修改或删除，请取消后刷新，再重新编辑。',409);
+  return result.recordset[0];
 }

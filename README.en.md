@@ -122,3 +122,6 @@ With Python 3 installed, run `npm run package` to build `dist/montra-1.2.1-sourc
 The ZIP extracts to a complete project folder. First-time users still need the dependencies and their own database. This is a local application, not a hosted multi-user service.
 
 See [LICENSE](LICENSE), [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+
+### Edit transactions
+Click Edit on a transaction, change its fields, then Save changes. Cancel or Escape discards the draft. Validation checks dates, positive amounts with up to two decimals, and text lengths. Saves preserve the ID and refresh totals. Concurrent changes are rejected; cancel, refresh, and reopen the transaction. Run `node test/edit-live-check.mjs` for isolated SQL database verification; it does not modify the personal ledger.

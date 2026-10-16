@@ -24,7 +24,7 @@ function saveAvailability(){$('save').disabled=!connected||saving;}
 function showOffline(error){lastOfflineError=error;connected=false;saveAvailability();$('connection').textContent=t('连接中断 · 数据可能未更新');$('connection').className='connection failed';$('offline').hidden=false;$('connection-error').textContent=errorText(error);}
 function params(){return new URLSearchParams({today:localToday(),month:$('month').value,type:$('filter-type').value,category:$('filter-category').value,q:$('search').value,page:String(page),all:$('all-months').checked?'1':'0'});}
 function render(data){
-  lastState=data;lastOfflineError=null;
+  lastState=data;lastOfflineError=null;renderCalendar(data);
   if(data.database){$('database-label').textContent=`${data.database} / dbo.jilu`;$('sql-database').textContent=t('默认数据库 · {database}',{database:data.database});}
   connected=true;saveAvailability();$('offline').hidden=true;$('connection').textContent=t('账本已连接 · 自动同步');$('connection').className='connection';
   for(const [id,val]of [['income',data.summary.income],['expense',data.summary.expense],['net',data.summary.net],['all-net',data.allNet]]){$(id).textContent=money(val);$(id).classList.toggle('negative',String(val).startsWith('-'));}
@@ -38,7 +38,7 @@ function render(data){
   $('category-chips').replaceChildren(...chips.map(c=>{const b=text('button',c,'chip');b.type='button';b.addEventListener('click',()=>{$('category').value=c;$('amount').focus();});return b;}));
   $('records').replaceChildren();
   if(!data.rows.length){const tr=document.createElement('tr'),td=text('td',t('这里还没有账单。换个筛选条件，或在左边记下第一笔。'),'empty-cell');td.colSpan=4;tr.append(td);$('records').append(tr);}
-  for(const r of data.rows){const tr=document.createElement('tr'),detail=document.createElement('td');detail.append(text('div',formatDate(r.riqi),'date'),text('div',r.note||t('无备注'),'note'),text('div',`#${r.id}`,'record-id'));const cat=document.createElement('td');const tag=text('span',r.category,'category-tag');tag.title=r.category;cat.append(tag);const type=document.createElement('td');type.append(text('span',r.type==='i'?t('收入'):t('支出'),r.type==='i'?'badge income':'badge'));const amt=text('td',`${r.type==='i'?'+':'−'}${money(r.amount)}`,`money ${r.type==='i'?'amount-income':'amount-expense'}`);tr.append(detail,cat,type,amt);$('records').append(tr);}
+  for(const r of data.rows){const tr=document.createElement('tr'),detail=document.createElement('td');detail.append(text('div',formatDate(r.riqi),'date'),text('div',r.note||t('无备注'),'note'),text('div',`#${r.id}`,'record-id'));const cat=document.createElement('td');const tag=text('span',r.category,'category-tag');tag.title=r.category;cat.append(tag);const type=document.createElement('td');type.append(text('span',r.type==='i'?t('收入'):t('支出'),r.type==='i'?'badge income':'badge'));const amt=text('td',`${r.type==='i'?'+':'−'}${money(r.amount)}`,`money ${r.type==='i'?'amount-income':'amount-expense'}`);const edit=text('button',t('编辑'),'text-btn');edit.type='button';edit.setAttribute('aria-label',t('编辑账单 #{id}',{id:r.id}));edit.addEventListener('click',()=>openEdit(r));detail.append(edit);tr.append(detail,cat,type,amt);$('records').append(tr);}
   $('record-count').textContent=t('{count} 笔',{count:data.total});$('page-info').textContent=t('第 {page} 页 / {pages} 页 · 每页 50 笔',{page,pages:Math.max(1,Math.ceil(data.total/50))});
   $('page-prev').disabled=page<=1;$('page-next').disabled=page*50>=data.total;
   const scopes=[$('all-months').checked?t('所有月份'):month,{'':t('全部收支'),i:t('收入'),e:t('支出')}[$('filter-type').value],chosen||t('全部类别')];if($('search').value)scopes.push(t('搜索：{query}',{query:$('search').value}));$('filter-description').textContent=scopes.join(' · ');
@@ -127,3 +127,55 @@ $('language').addEventListener('change',()=>{
   toast('语言已切换');
 });
 applyStaticLanguage();
+
+let editing=null,editSaving=false;
+function openEdit(row){
+  editing={...row};
+  for(const [field,key] of [['date','riqi'],['type','type'],['amount','amount'],['category','category'],['note','note']]) $('edit-'+field).value=row[key]??'';
+  $('edit-title').textContent=t('编辑账单 #{id}',{id:row.id});$('edit-message').textContent='';
+  $('edit-dialog').showModal();$('edit-amount').focus();
+}
+$('edit-cancel').addEventListener('click',()=>{if(!editSaving)$('edit-dialog').close();});
+$('edit-dialog').addEventListener('cancel',e=>{if(editSaving)e.preventDefault();});
+$('edit-form').addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();$('edit-form').requestSubmit();}});
+$('edit-form').addEventListener('submit',async e=>{
+  e.preventDefault();if(editSaving||!editing)return;
+  const entry={riqi:$('edit-date').value,type:$('edit-type').value,amount:$('edit-amount').value.trim(),category:$('edit-category').value.trim(),note:$('edit-note').value.trim()};
+  let invalid;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(entry.riqi)||entry.riqi.startsWith('0000')||!Number.isFinite(Date.parse(entry.riqi+'T00:00:00Z'))||new Date(entry.riqi+'T00:00:00Z').toISOString().slice(0,10)!==entry.riqi)invalid=['date','请选择有效日期。'];
+  else if(!/^\d{1,8}(\.\d{1,2})?$/.test(entry.amount)||Number(entry.amount)<=0)invalid=['amount','金额必须大于零，最多两位小数。'];
+  else if(!entry.category||entry.category.length>50)invalid=['category','类别不能为空，最多 50 个字符。'];
+  else if(entry.note.length>200)invalid=['note','备注最多 200 个字符。'];
+  if(invalid){$('edit-message').textContent=t(invalid[1]);$('edit-'+invalid[0]).focus();return;}
+  editSaving=true;$('edit-save').disabled=true;$('edit-cancel').disabled=true;$('edit-save').textContent=t('正在保存…');$('edit-message').textContent='';
+  $('edit-form').querySelectorAll('input,select').forEach(el=>el.disabled=true);
+  try{
+    await api('/api/entries/'+editing.id,{method:'POST',headers:{'Content-Type':'application/json','X-Ledger-Request':'1'},body:JSON.stringify({entry,original:editing})});
+    $('edit-dialog').close();toast('账单修改已保存');await refresh();
+  }catch(error){$('edit-message').textContent=errorText(error);}
+  finally{editSaving=false;$('edit-save').disabled=false;$('edit-cancel').disabled=false;$('edit-save').textContent=t('保存修改');$('edit-form').querySelectorAll('input,select').forEach(el=>el.disabled=false);}
+});
+
+function renderCalendar(data){
+  const month=data.month,days=new Map((data.daily||[]).map(day=>[day.riqi,day]));
+  const first=new Date(`${month}-01T00:00:00Z`);
+  const end=new Date(first);end.setUTCMonth(end.getUTCMonth()+1);end.setUTCDate(0);
+  $('calendar-month').textContent=new Intl.DateTimeFormat(localeFor(language),{year:'numeric',month:'long',timeZone:'UTC'}).format(first);
+  const cents=value=>{const [whole,fraction='']=String(value).split('.');return BigInt(whole)*100n+BigInt(fraction.padEnd(2,'0'));};
+  for(const key of ['income','expense']){const sum=(data.daily||[]).reduce((total,day)=>total+cents(day[key]),0n);$('calendar-'+key).textContent=money(`${sum/100n}.${String(sum%100n).padStart(2,'0')}`);}
+  const grid=$('calendar-grid');grid.replaceChildren();
+  for(let i=0;i<7;i++){const date=new Date('2024-01-01T00:00:00Z');date.setUTCDate(date.getUTCDate()+i);grid.append(text('div',new Intl.DateTimeFormat(localeFor(language),{weekday:'short',timeZone:'UTC'}).format(date),'calendar-weekday'));}
+  const offset=(first.getUTCDay()+6)%7;
+  for(let i=0;i<offset;i++){const blank=text('div','','calendar-blank');blank.setAttribute('aria-hidden','true');grid.append(blank);}
+  for(let day=1;day<=end.getUTCDate();day++){
+    const date=`${month}-${String(day).padStart(2,'0')}`,row=days.get(date)||{income:'0',expense:'0'};
+    const cell=text('div','','calendar-day');cell.dataset.date=date;
+    if(date===localToday()){cell.classList.add('is-today');cell.setAttribute('aria-current','date');}
+    if(date>localToday())cell.classList.add('is-future');
+    const heading=text('div',String(day),'calendar-date');if(date===localToday())heading.append(text('span',t('今天'),'calendar-today'));
+    cell.append(heading,text('div',t('收入')+' +'+money(row.income),'calendar-in'),text('div',t('支出')+' −'+money(row.expense),'calendar-out'));
+    cell.setAttribute('aria-label',`${formatDate(date)} · ${t('收入')} ${money(row.income)} · ${t('支出')} ${money(row.expense)}`);grid.append(cell);
+  }
+  const trailing=(7-(offset+end.getUTCDate())%7)%7;
+  for(let i=0;i<trailing;i++){const blank=text('div','','calendar-blank');blank.setAttribute('aria-hidden','true');grid.append(blank);}
+}

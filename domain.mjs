@@ -6,6 +6,7 @@ export function dateValue(value) {
   return value;
 }
 export function validateEntry(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new UserError('提交格式无效。');
   const riqi = dateValue(body.riqi);
   if (!['i', 'e'].includes(body.type)) throw new UserError('请选择收入或支出。');
   const amount = String(body.amount ?? '').trim();

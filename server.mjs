@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {detectLanguage,translate} from './public/i18n.js';
 import {UserError,validateEntry,validateFilters} from './domain.mjs';
-import {readState,insertEntry,setPassword,executeSql} from './database.mjs';
+import {readState,insertEntry,updateEntry,setPassword,executeSql} from './database.mjs';
 try { process.loadEnvFile?.('.env'); } catch (error) { if (error.code!=='ENOENT') throw error; }
 const port=Number(process.env.PORT || 3210);
 const origin=`http://127.0.0.1:${port}`;
@@ -15,7 +15,7 @@ async function body(req) {
   for await (const part of req) {text+=part; if (Buffer.byteLength(text)>16384) throw new UserError('输入内容过长。',413);}
   try {return JSON.parse(text);} catch {throw new UserError('提交格式无效。');}
 }
-export function createApp(deps={readState,insertEntry,setPassword,executeSql}, allowedPort=port) {
+export function createApp(deps={readState,insertEntry,updateEntry,setPassword,executeSql}, allowedPort=port) {
   return http.createServer(async (req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
@@ -29,6 +29,13 @@ export function createApp(deps={readState,insertEntry,setPassword,executeSql}, a
         if (req.headers['x-ledger-request']!=='1' || (req.headers.origin && ![requestOrigin,`http://localhost:${allowedPort}`].includes(req.headers.origin))) throw new UserError('请从记账界面提交。',403);
         if (!req.headers['content-type']?.startsWith('application/json')) throw new UserError('提交格式无效。',415);
         if(url.pathname==='/api/sql') {const data=await body(req);return send(res,200,await deps.executeSql(data?.code));}
+        if(/^\/api\/entries\/[^/]+$/.test(url.pathname)) {
+          const id=Number(url.pathname.split('/').pop());
+          if(!Number.isInteger(id)||id<1||id>2147483647) throw new UserError('账单编号无效。');
+          const data=await body(req),entry=validateEntry(data?.entry);
+          validateEntry(data?.original);
+          return send(res,200,await deps.updateEntry(id,entry,data.original));
+        }
         if(url.pathname==='/api/entries') {const entry=validateEntry(await body(req)); return send(res,201,await deps.insertEntry(entry));}
         if(url.pathname==='/api/connect') {const data=await body(req);await deps.setPassword(data.password);return send(res,200,{ok:true});}
       }

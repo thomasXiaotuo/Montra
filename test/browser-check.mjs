@@ -1,7 +1,7 @@
 import {chromium} from '@playwright/test';
 import assert from 'node:assert/strict';
 import {createApp} from '../server.mjs';
-import {validateEntry} from '../domain.mjs';
+import {UserError,validateEntry} from '../domain.mjs';
 let records=[{id:1,riqi:'2026-10-01',type:'e',amount:'14.48',category:'eat',note:'Lunch'}, {id:2,riqi:'2026-10-01',type:'i',amount:'3000.00',category:'salary',note:'Work'}, {id:3,riqi:'2026-09-01',type:'e',amount:'100.00',category:'shop',note:'Previous month'}, {id:4,riqi:'2026-10-31',type:'e',amount:'20.00',category:'future',note:'Future record'}, {id:5,riqi:'2026-10-02',type:'e',amount:'5.00',category:'other',note:'<img src=x onerror=alert(1)>'}];
 const cents=r=>Math.round(Number(r.amount)*100);
 const decimal=n=>(n/100).toFixed(2);
@@ -15,8 +15,10 @@ const server=createApp({
     const allNet=decimal(records.filter(r=>r.riqi<=f.today).reduce((s,r)=>s+(r.type==='i'?1:-1)*cents(r),0));
     const filtered=records.filter(r=>(f.all||(r.riqi>=f.start&&r.riqi<f.end))&&(!f.type||r.type===f.type)&&(!f.category||r.category===f.category)&&(!f.q||`${r.category} ${r.note}`.includes(f.q))).sort((a,b)=>b.riqi.localeCompare(a.riqi)||b.id-a.id);
     const groups=new Map();for(const r of current.filter(r=>r.type==='e'))groups.set(r.category,(groups.get(r.category)||0)+cents(r));
-    return {summary:{income:decimal(income),expense:decimal(expense),net:decimal(income-expense)},allNet,categories:[...new Set(records.map(r=>r.category))],breakdown:[...groups].map(([category,n])=>({category,amount:decimal(n)})),rows:filtered.slice((f.page-1)*50,f.page*50),total:filtered.length,page:f.page,month:f.month,updatedAt:new Date().toISOString()};
+    const daily=[...new Set(records.filter(r=>r.riqi>=f.start&&r.riqi<f.end).map(r=>r.riqi))].map(riqi=>({riqi,income:decimal(records.filter(r=>r.riqi===riqi&&r.type==='i').reduce((s,r)=>s+cents(r),0)),expense:decimal(records.filter(r=>r.riqi===riqi&&r.type==='e').reduce((s,r)=>s+cents(r),0))}));
+    return {daily,summary:{income:decimal(income),expense:decimal(expense),net:decimal(income-expense)},allNet,categories:[...new Set(records.map(r=>r.category))],breakdown:[...groups].map(([category,n])=>({category,amount:decimal(n)})),rows:filtered.slice((f.page-1)*50,f.page*50),total:filtered.length,page:f.page,month:f.month,updatedAt:new Date().toISOString()};
   },
+  updateEntry:async (id,entry,original)=>{await new Promise(r=>setTimeout(r,150));const row=records.find(r=>r.id===id);if(!row||JSON.stringify(row)!==JSON.stringify(original))throw new UserError('账单已被修改或删除，请取消后刷新，再重新编辑。',409);Object.assign(row,entry);return {id};},
   insertEntry:async entry=>{validateEntry(entry);await new Promise(r=>setTimeout(r,200));const row={id:Math.max(...records.map(r=>r.id))+1,...entry};records.push(row);return {id:row.id};},setPassword:async()=>{},
   executeSql:async code=>{
     if(code.includes('BROKEN'))return{ok:false,recordsets:[],messages:[],rowsAffected:[],error:{message:'Incorrect syntax',line:1,batch:1},elapsedMs:2,truncated:false};
@@ -33,6 +35,43 @@ try{
   await page.goto('http://127.0.0.1:3212');await page.waitForFunction(()=>document.getElementById('income').textContent==='3,000.00');
   assert.equal(await page.locator('#expense').textContent(),'19.48');assert.equal(await page.locator('#all-net').textContent(),'2,880.52');
   assert.equal(await page.locator('#records img').count(),0);
+  assert.equal(await page.locator('.calendar-day').count(),31);
+  assert.equal(await page.locator('#calendar-expense').textContent(),'39.48');
+  assert.equal(await page.locator('#calendar-income').textContent(),'3,000.00');
+  assert.match(await page.locator('[data-date="2026-10-01"]').textContent(),/3,000.00/);
+  assert.match(await page.locator('[data-date="2026-10-03"]').textContent(),/0.00/);
+  await page.fill('#month','2024-02');await page.locator('#month').dispatchEvent('change');
+  await page.waitForFunction(()=>document.querySelectorAll('.calendar-day').length===29);
+  assert.equal(await page.locator('#calendar-expense').textContent(),'0.00');
+  await page.fill('#month','2026-10');await page.locator('#month').dispatchEvent('change');
+  await page.waitForFunction(()=>document.querySelectorAll('.calendar-day').length===31);
+  await page.locator('#calendar-card').screenshot({path:'test-results/calendar-desktop.png'});
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.locator('#calendar-card').screenshot({path:'test-results/calendar-mobile.png'});
+  await page.setViewportSize({width:1440,height:1100});
+  await page.fill('#amount','42.50');
+  await page.getByRole('button',{name:'编辑账单 #1',exact:true}).click();
+  assert.equal(await page.inputValue('#edit-amount'),'14.48');
+  await page.fill('#edit-amount','99');await page.click('#edit-cancel');assert.equal(records[0].amount,'14.48');
+  await page.getByRole('button',{name:'编辑账单 #1',exact:true}).click();
+  await page.fill('#edit-amount','0');await page.click('#edit-save');assert.match(await page.locator('#edit-message').textContent(),/金额必须/);
+  await page.fill('#edit-amount','22.35');await page.fill('#edit-category','  ');await page.click('#edit-save');assert.match(await page.locator('#edit-message').textContent(),/类别不能为空/);
+  await page.fill('#edit-category','eat');
+  await page.screenshot({path:'test-results/edit-desktop.png'});
+  await page.locator('#edit-save').dblclick();await page.waitForFunction(()=>!document.getElementById('edit-dialog').open);
+  assert.equal(records[0].amount,'22.35');assert.equal(records.length,5);assert.equal(await page.inputValue('#amount'),'42.50');
+  await page.waitForFunction(()=>document.getElementById('expense').textContent==='27.35');
+  assert.equal(await page.locator('#calendar-expense').textContent(),'47.35');
+  await page.getByRole('button',{name:'编辑账单 #1',exact:true}).click();records[0].note='Changed elsewhere';
+  await page.click('#edit-save');await page.waitForFunction(()=>document.getElementById('edit-message').textContent.includes('已被修改'));
+  assert.equal(records[0].note,'Changed elsewhere');await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'编辑账单 #1',exact:true}).click();
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.locator('#edit-dialog').evaluate(el=>el.getBoundingClientRect().right<=innerWidth));
+  await page.screenshot({path:'test-results/edit-mobile.png'});await page.click('#edit-cancel');await page.setViewportSize({width:1440,height:1100});
+  records[0].amount='14.48';records[0].note='Lunch';await page.click('#refresh');
+
   await page.selectOption('#filter-category','eat');await page.waitForFunction(()=>document.getElementById('record-count').textContent==='1 笔');
   await page.selectOption('#filter-category','');await page.waitForFunction(()=>document.getElementById('record-count').textContent==='4 笔');
   await page.fill('#amount','10.25');await page.fill('#category','eat');await page.fill('#note','Dinner');
