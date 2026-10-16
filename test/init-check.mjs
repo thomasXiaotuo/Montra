@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import sql from 'mssql';
 import {connectionConfig} from '../database.mjs';
 const name=`montra_test_${randomBytes(6).toString('hex')}`;
-const config=await connectionConfig();
+const config=await connectionConfig({administrative:true});
 const admin=new sql.ConnectionPool({...config,database:'master'});
 await admin.connect();
 try {

@@ -1,6 +1,6 @@
 import {chromium,webkit} from '@playwright/test';
 import assert from 'node:assert/strict';
-import {createApp} from '../server.mjs';
+import {createTestApp as createApp,testLogin,browserLogin,TEST_PASSWORD} from './support.mjs';
 import {validateEntry,UserError} from '../domain.mjs';
 let records=[{id:1,riqi:'2026-10-01',type:'e',amount:'14.48',category:'eat',note:'Lunch'}, {id:2,riqi:'2026-10-01',type:'i',amount:'3000.00',category:'salary',note:'Work'}, {id:3,riqi:'2026-09-01',type:'e',amount:'100.00',category:'shop',note:'Previous month'}, {id:4,riqi:'2026-10-31',type:'e',amount:'20.00',category:'future',note:'Future record'}, {id:5,riqi:'2026-10-02',type:'e',amount:'5.00',category:'other',note:'<img src=x onerror=alert(1)>'}];
 const cents=r=>Math.round(Number(r.amount)*100);
@@ -38,7 +38,7 @@ try{
   const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'zh-CN'});
   await context.addInitScript(()=>{const NativeDate=Date;class FixedDate extends NativeDate{constructor(...args){super(...(args.length?args:['2026-10-13T12:00:00-07:00']));}static now(){return new NativeDate('2026-10-13T12:00:00-07:00').getTime();}}window.Date=FixedDate;});
   const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto('http://127.0.0.1:3212');await page.waitForFunction(()=>document.getElementById('income').textContent==='3,000.00');
+  await page.goto('http://127.0.0.1:3212');await browserLogin(page);await page.waitForFunction(()=>document.getElementById('income').textContent==='3,000.00');
   assert.equal(await page.locator('#expense').textContent(),'19.48');assert.equal(await page.locator('#all-net').textContent(),'2,880.52');
   assert.equal(await page.locator('#records img').count(),0);
   await page.selectOption('#filter-category','eat');await page.waitForFunction(()=>document.getElementById('record-count').textContent==='1 笔');
@@ -59,7 +59,7 @@ try{
   fail=true;await page.click('#refresh');await page.waitForFunction(()=>!document.getElementById('offline').hidden);assert.equal(await page.locator('#save').isDisabled(),true);
   assert.equal(await page.locator('#income').textContent(),'3,100.00');
   fail=false;await page.click('#refresh');await page.waitForFunction(()=>document.getElementById('offline').hidden);
-  await page.selectOption('#sql-example','insert');assert.match(await page.inputValue('#sql-code'),/INSERT INTO/);assert.equal(records.length,7); // Templates do not execute.
+  assert.equal(await page.locator('#sql-example option[value=insert]').count(),0);await page.selectOption('#sql-example','list');assert.match(await page.inputValue('#sql-code'),/SELECT TOP/);assert.equal(records.length,7); // Templates do not execute.
   await page.fill('#sql-code','SELECT 1 + 1 AS result;');await page.locator('#sql-code').press('Control+Enter');await page.waitForFunction(()=>document.getElementById('sql-status').textContent.includes('执行完成'));
   assert.equal(await page.locator('#sql-results td').textContent(),'2');
   await page.fill('#sql-code','BROKEN');await page.click('#sql-run');await page.waitForFunction(()=>document.getElementById('sql-status').textContent.includes('第 1 行'));
@@ -80,9 +80,9 @@ try{
   assert.equal(await page.inputValue('#language'),'en'); // Choice persists across reload.
   await page.fill('#amount','-1');await page.fill('#category','eat');await page.click('#save');
   assert.match(await page.locator('#form-message').textContent(),/positive amount/);
-  await page.selectOption('#sql-example','insert');assert.match(await page.inputValue('#sql-code'),/Edit the date/);
+  await page.selectOption('#sql-example','list');assert.match(await page.inputValue('#sql-code'),/SELECT TOP/);
   await page.selectOption('#language','zh');assert.match(await page.locator('#form-message').textContent(),/金额必须/);
-  assert.match(await page.inputValue('#sql-code'),/Edit the date/); // Changing language preserves SQL draft.
+  assert.match(await page.inputValue('#sql-code'),/SELECT TOP/); // Changing language preserves SQL draft.
   await page.reload();await page.waitForFunction(()=>document.getElementById('connection').textContent.includes('账本已连接'));
   assert.equal(await page.inputValue('#language'),'zh');
   // Editing is separate from the add-entry draft and never creates a new row.
@@ -121,8 +121,26 @@ try{
   await page.click('#edit-cancel');await page.click('#refresh');
   await page.waitForFunction(()=>document.getElementById('records').textContent.includes('外部 SQL 已修改'));
   assert.equal(await page.locator('#records img').count(),0);
+  // Password changes revoke the other browser session; locking clears rendered ledger data.
+  const secondContext=await browser.newContext({locale:'zh-CN'});
+  const second=await secondContext.newPage();await second.goto('http://127.0.0.1:3212');await browserLogin(second);
+  await page.click('#change-password');await page.fill('#current-password',TEST_PASSWORD);
+  await page.fill('#new-password','Changed test password 2026!');await page.fill('#confirm-password','Changed test password 2026!');
+  await page.click('#password-save');await page.waitForFunction(()=>!document.getElementById('password-dialog').open);
+  await second.click('#refresh');await second.waitForSelector('#auth-dialog[open]');
+  assert.equal(await second.locator('.edit-entry').count(),0);await secondContext.close();
+  await page.click('#lock');await page.waitForSelector('#auth-dialog[open]');
+  assert.equal(await page.locator('.edit-entry').count(),0);
+  assert.equal(await page.locator('#sql-results').textContent(),'');
+  await page.fill('#access-password','Changed test password 2026!');await page.click('#auth-submit');
+  await page.waitForFunction(()=>!document.getElementById('auth-dialog').open);
+  await page.waitForFunction(()=>document.getElementById('connection').textContent.includes('账本已连接'));
+  // Restore the fixture password for independent contexts below.
+  await page.click('#change-password');await page.fill('#current-password','Changed test password 2026!');
+  await page.fill('#new-password',TEST_PASSWORD);await page.fill('#confirm-password',TEST_PASSWORD);
+  await page.click('#password-save');await page.waitForFunction(()=>!document.getElementById('password-dialog').open);
   const intlContext=await browser.newContext({viewport:{width:1440,height:1100},locale:'fr-FR'});
-  const intlPage=await intlContext.newPage();await intlPage.goto('http://127.0.0.1:3212');
+  const intlPage=await intlContext.newPage();await intlPage.goto('http://127.0.0.1:3212');await browserLogin(intlPage);
   await intlPage.waitForFunction(()=>document.documentElement.lang==='en-US');
   await intlPage.screenshot({path:'test-results/english-desktop.png',fullPage:false});
   await intlContext.close();

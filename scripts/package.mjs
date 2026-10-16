@@ -7,7 +7,7 @@ import {edition as sourceEdition} from '../runtime.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
 import {fileURLToPath} from 'node:url';
 const {version}=JSON.parse(await readFile(join(root,'package.json'),'utf8'));
-const files=['package.json','package-lock.json','server.mjs','runtime.mjs','database.mjs','domain.mjs','sql-console.mjs','public','scripts','test','docs','README.md','README.en.md','CHANGELOG.md','LICENSE','CONTRIBUTING.md','SECURITY.md','.gitignore','.env.example','compose.yaml','.github'];
+const files=['package.json','package-lock.json','server.mjs','auth.mjs','private-store.mjs','database-security.mjs','runtime.mjs','database.mjs','domain.mjs','sql-console.mjs','public','scripts','test','docs','README.md','README.en.md','CHANGELOG.md','LICENSE','CONTRIBUTING.md','SECURITY.md','.gitignore','.env.example','compose.yaml','.github'];
 const launchers={macos:['打开记账.command','start.command'],linux:['start.sh'],windows:['start.cmd','打开记账.cmd']};
 const exec=promisify(execFile);
 let python;

@@ -1,16 +1,16 @@
 # Montra · Personal Ledger
 
-## 1.4.1 · macOS / Linux / Windows
+## 1.5.0 · macOS / Linux / Windows
 
 | Edition | Version | Entry point | Environment, installation and usage |
 |---|---|---|---|
-| macOS | 1.4.1-macos | start.command / 打开记账.command | [macOS guide (Chinese)](docs/macOS.md) |
-| Linux | 1.4.1-linux | sh start.sh | [Linux guide (Chinese)](docs/Linux.md) |
-| Windows | 1.4.1-windows | start.cmd / 打开记账.cmd | [Windows guide (Chinese)](docs/Windows.md) |
+| macOS | 1.5.0-macos | start.command / 打开记账.command | [macOS guide (Chinese)](docs/macOS.md) |
+| Linux | 1.5.0-linux | sh start.sh | [Linux guide (Chinese)](docs/Linux.md) |
+| Windows | 1.5.0-windows | start.cmd / 打开记账.cmd | [Windows guide (Chinese)](docs/Windows.md) |
 
 **Windows and Linux default to native SQL Server without Docker. Follow the platform guide and configure SQL_PASSWORD and SQL_USE_DOCKER=0. Windows also requires no WSL.**
 
-These are source distributions requiring Node.js and SQL Server, with separate launchers and platform guides. The core version is 1.4.1. Connect to an existing SQL Server without Docker, or set up a new local database using Compose. Copying the source does not copy ledger records. See [data and migration](docs/使用与数据.md) and [changes](CHANGELOG.md).
+These are source distributions requiring Node.js and SQL Server, with separate launchers and platform guides. The core version is 1.5.0. Connect to an existing SQL Server without Docker, or set up a new local database using Compose. Copying the source does not copy ledger records. See [data and migration](docs/使用与数据.md) and [changes](CHANGELOG.md).
 
 The launcher honors PORT and SQL_CONTAINER from the project-root .env. Start Docker yourself if using containers. Remote SQL Server skips local Docker. Launchers install missing runtime dependencies and try to start an existing container; database creation is an explicit separate step. The app footer and /api/health show release information.
 
@@ -20,6 +20,12 @@ The launcher honors PORT and SQL_CONTAINER from the project-root .env. Start Doc
 A local personal ledger with a bilingual interface and an integrated SQL workbench. Add entries using a form, write SQL in the app, or use your terminal. All three use the same SQL Server table.
 
 **MIT licensed · Node.js 22+ · SQL Server 2022 · macOS / Linux / Windows launchers**
+
+## Security upgrade in 1.5.0
+
+Stop older instances, install dependencies, then run `npm run db:secure` against your existing ledger. For a new ledger run `npm run db:init` first. The security command exports a protected ledger backup and provisions a dedicated SELECT/INSERT/UPDATE account plus a separate read-only workbench account. Existing rows are unchanged.
+
+The app requires an access password. The initial password is in `.montra/初始访问密码.json`, whose path is shown in the startup window. Use Change access password after signing in; this deletes the initial-password file and revokes other sessions. Lock ledger signs out. `npm run db:backup` exports all rows to a protected local JSON file. Keep `.montra`, `.env`, credentials and backups private. See [security details](SECURITY.md).
 
 ## Features
 
@@ -58,7 +64,7 @@ npm start
 
 Open http://127.0.0.1:3210. Use the language selector in the top right.
 
-Existing records are not imported or replaced. On macOS, the server can read the existing local container password. Windows/Linux default to native SQL Server and require SQL_PASSWORD; they never invoke Docker by default. Passwords are not sent to the browser. If the SQL password has changed, enter the current password in the reconnect form. It is held only in the running server’s memory.
+Existing records are not imported or replaced. Only explicit initialization/security commands may read a local container administrator password. Daily app requests use dedicated low-privilege credentials. Windows/Linux default to native SQL Server and never invoke Docker by default. Passwords are not sent to the browser. If the SQL password has changed, enter the current password in the reconnect form. It is held only in the running server’s memory.
 
 ## Start with a new database
 
@@ -77,6 +83,7 @@ docker compose logs --tail 30
 
 ```sh
 npm run db:init
+npm run db:secure
 npm start
 ```
 
@@ -99,7 +106,7 @@ Configure `SQL_SERVER`, `SQL_PORT`, `SQL_USER`, `SQL_DATABASE`, `SQL_PASSWORD`, 
 
 ## SQL workbench
 
-Code runs against the configured database using your configured SQL account. SELECT, INSERT, UPDATE, DELETE and other permitted T-SQL commands act on the actual database. Templates only fill the editor; they never execute automatically. Press ⌘ / Ctrl + Enter to run.
+The workbench uses a separate database-enforced read-only account. Use the entry forms to add or edit transactions. SQL writes, schema changes and database administration are not available through the workbench. Templates only fill the editor; they never execute automatically. Press ⌘ / Ctrl + Enter to run.
 
 ```sql
 SELECT TOP (50) * FROM dbo.jilu
@@ -109,7 +116,7 @@ GO
 
 Each run gets a separate database session. GO batches within the same run share that session, but temporary tables and transaction state do not survive across separate runs. Complete BEGIN and COMMIT / ROLLBACK in a single run. Unfinished transactions are rolled back; statements committed before an error are not automatically undone.
 
-Limits: 12 KB of SQL, 20 GO batches, approximately 30 seconds, and up to 1,000 displayed rows and 20 result sets. Display limits do not limit the number of rows a write statement changes. GO repeat counts, sqlcmd file commands and shell commands are not supported.
+Limits: 12 KB of SQL, 20 GO batches, approximately 30 seconds, and up to 1,000 displayed rows and 20 result sets. Permissions prohibit writes to the ledger through the workbench. GO repeat counts, sqlcmd file commands and shell commands are not supported.
 
 ## Development and tests
 
@@ -132,7 +139,7 @@ Translations live in `public/i18n.js`. Both dictionaries must have matching keys
 
 ## Share the source
 
-With Python 3.9+ installed (packaging only), run `npm run package` to build `dist/montra-1.4.1-{source,macos,linux,windows}.zip`. Each platform ZIP includes its own entry point, VERSION, release.json and 使用说明.md. Packaging uses an explicit file allowlist and excludes `.env`, database exports, personal records, screenshots, node_modules and Git history.
+With Python 3.9+ installed (packaging only), run `npm run package` to build `dist/montra-1.5.0-{source,macos,linux,windows}.zip`. Each platform ZIP includes its own entry point, VERSION, release.json and 使用说明.md. Packaging uses an explicit file allowlist and excludes `.env`, database exports, personal records, screenshots, node_modules and Git history.
 
 The ZIP extracts to a complete project folder. First-time users still need the dependencies and their own database. This is a local application, not a hosted multi-user service.
 

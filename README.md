@@ -1,16 +1,16 @@
 # Montra
 
-## 1.4.1 · 三平台版本
+## 1.5.0 · 三平台版本
 
 | 版本 | 版本号 | 启动入口 | 从环境、安装到使用 |
 |---|---|---|---|
-| macOS | 1.4.1-macos | 打开记账.command / start.command | [macOS 使用说明](docs/macOS.md) |
-| Linux | 1.4.1-linux | sh start.sh | [Linux 使用说明](docs/Linux.md) |
-| Windows | 1.4.1-windows | 打开记账.cmd / start.cmd | [Windows 使用说明](docs/Windows.md) |
+| macOS | 1.5.0-macos | 打开记账.command / start.command | [macOS 使用说明](docs/macOS.md) |
+| Linux | 1.5.0-linux | sh start.sh | [Linux 使用说明](docs/Linux.md) |
+| Windows | 1.5.0-windows | 打开记账.cmd / start.cmd | [Windows 使用说明](docs/Windows.md) |
 
 **Windows 和 Linux 版默认连接原生 SQL Server，无需 Docker。分别按系统说明安装 SQL Server 并设置 SQL_PASSWORD；SQL_USE_DOCKER=0 会彻底禁用 Docker 调用。Windows 也无需 WSL。**
 
-共同核心版本是 1.4.1，平台版本号在各平台包的 VERSION、release.json、启动窗口、界面底部和 /api/health 中标识。这是需要安装 Node.js 和连接 SQL Server 的源码版本，不是免安装二进制软件。
+共同核心版本是 1.5.0，平台版本号在各平台包的 VERSION、release.json、启动窗口、界面底部和 /api/health 中标识。这是需要安装 Node.js 和连接 SQL Server 的源码版本，不是免安装二进制软件。
 
 请先按自己的系统阅读对应说明。已有 SQL Server 不强制使用 Docker。复制项目不等于迁移旧账单，详见 [数据与迁移](docs/使用与数据.md)；改动记录见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -19,9 +19,20 @@
 *Your money, your way.*
 [English](README.en.md) | [简体中文](README.md)
 
-一个本地运行的收支记账软件：用界面快速记账，也可以在 SQL 工作台或终端写 SQL。三种方式共享 SQL Server 中同一张 `dbo.jilu` 表。
+一个本地运行的收支记账软件：用界面快速记账，也可以在 SQL 工作台查询账单，也可使用独立终端管理 SQL。三种方式共享 SQL Server 中同一张 `dbo.jilu` 表。
 
 **MIT 开源许可证 · Node.js 22+ · SQL Server 2022 · macOS / Linux / Windows 启动入口**
+
+## 1.5.0 安全升级（已有账本也需要）
+
+日常网页现在需要访问密码，SQL 工作台默认只读。请先停止旧版，在原账本连接配置下运行：
+
+```sh
+npm ci --omit=dev
+npm run db:secure
+```
+
+新账本先运行 `npm run db:init`，再运行加固命令。加固会备份全部账单并配置专用低权限账号，不修改原记录。启动后从终端提示的 `.montra/初始访问密码.json` 读取访问密码；登录后可修改密码和锁定账本。`npm run db:backup` 可导出受本机文件权限保护的账单备份。详细权限、远程证书、升级和忘记密码的处理见 [安全说明](SECURITY.md)。`.montra`、`.env`、密码和备份都不能分享。
 
 ## 功能
 
@@ -47,6 +58,8 @@ Apple M 芯片运行 SQL Server 容器需要模拟 x86-64。模拟是否可用�
 
 ## 使用现有账本
 
+先停止旧版服务，按上方安全升级步骤执行 `npm run db:secure`，再启动本版。
+
 下载源码并解压，双击 `打开记账.command`。先自行打开 Docker Desktop。入口首次启动会安装运行依赖、尝试启动配置的已有容器，并在浏览器打开 http://127.0.0.1:3210。
 
 使用期间保留启动时打开的终端窗口。按 Control+C 关闭界面服务，不会删除数据库。若 Mac 没有为 `.command` 保留可执行权限，可在项目目录运行 `chmod +x 打开记账.command`。
@@ -61,7 +74,7 @@ npm start
 
 然后打开 http://127.0.0.1:3210。
 
-已有数据不会迁移或重新创建。macOS 默认可从已有容器读取密码；Windows/Linux 默认不调用 Docker，需配置 SQL_PASSWORD。密码不会发送给浏览器。若曾修改数据库账号密码，可在页面连接提示中输入当前密码；只保留在本次服务进程的内存中。
+已有数据不会迁移或重新创建。只有初始化/加固命令可从已有本机容器读取管理密码；日常网页使用专用低权限凭据。Windows/Linux 默认不调用 Docker。密码不会发送给浏览器。若曾修改数据库账号密码，可在页面连接提示中输入当前密码；只保留在本次服务进程的内存中。
 
 ## 从零安装（新使用者）
 
@@ -80,6 +93,7 @@ docker compose logs --tail 30
 
 ```sh
 npm run db:init
+npm run db:secure
 npm start
 ```
 
@@ -104,9 +118,7 @@ npm start
 
 ## SQL 工作台
 
-默认连接同一记账数据库。可执行 SELECT、INSERT、UPDATE、DELETE 及账号有权限执行的其他 T-SQL。代码会操作真实数据，请核对代码再点击执行。
-
-例如查询支出：
+工作台使用单独的只读 SQL 账号，可以执行 SELECT 查询和连接内临时表操作；写入限制由数据库权限强制执行。新增账单使用左侧表单，修改账单使用明细中的“编辑”。原来的管理员终端由你自行管理，本软件不会限制外部工具的管理员权限。
 
 ```sql
 SELECT * FROM dbo.jilu
@@ -115,25 +127,7 @@ ORDER BY riqi DESC, id DESC;
 GO
 ```
 
-例如录入一笔（执行前改成自己的实际账单）：
-
-```sql
-INSERT INTO dbo.jilu (riqi, type, amount, category, note)
-VALUES ('2026-10-13', 'e', 12.50, 'eat', 'Lunch');
-GO
-```
-
-每次点击执行是独立数据库会话。同一次执行中的 GO 批次共享会话，临时表可以跨 GO 使用；变量仍遵循 SQL Server 的批次作用域。跨多次点击不能保留变量、临时表或未提交事务。
-
-事务的 BEGIN、COMMIT / ROLLBACK 必须在同一次执行中完成。未提交的事务会回滚；错误前已经提交的语句不会自动撤销。失败后会停止后续 GO 批次，重试前先核对账单，避免重复记账。
-
-输入最多 12 KB、20 个 GO 批次、约 30 秒；结果最多显示 1,000 行和 20 个结果集，较长单元格会截断。结果显示上限不会限制 INSERT / UPDATE / DELETE 的操作行数。支持单独一行的 GO，不支持 GO 重复次数、sqlcmd 文件指令或 shell 命令。
-
-仍可使用原终端连接：
-
-```sh
-docker exec -it sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C
-```
+按 ⌘/Ctrl+Enter 执行，示例只填入编辑器。每次运行最多 12 KB、20 个 GO 批次、约 30 秒，结果最多显示 1,000 行和 20 个结果集。变量与临时表不跨多次点击保留，未提交事务会回滚。禁止 sqlcmd 文件指令和 shell 命令。
 
 ## 开发和测试
 
@@ -184,7 +178,7 @@ montra/
 
 ## 分享或发布源码
 
-源码打包需要 Python 3.9+（只使用标准库；普通使用不需要 Python）。运行 `npm run package` 同时生成 `dist/montra-1.4.1-source.zip`、`dist/montra-1.4.1-macos.zip`、`dist/montra-1.4.1-linux.zip`、`dist/montra-1.4.1-windows.zip`。打包采用固定文件白名单，不包括 `.env`、个人账单、数据库备份、截图、node_modules 或 Git 历史。解压后是一个完整项目文件夹，首次使用需要安装依赖和配置自己的数据库。
+源码打包需要 Python 3.9+（只使用标准库；普通使用不需要 Python）。运行 `npm run package` 同时生成 `dist/montra-1.5.0-source.zip`、`dist/montra-1.5.0-macos.zip`、`dist/montra-1.5.0-linux.zip`、`dist/montra-1.5.0-windows.zip`。打包采用固定文件白名单，不包括 `.env`、个人账单、数据库备份、截图、node_modules 或 Git 历史。解压后是一个完整项目文件夹，首次使用需要安装依赖和配置自己的数据库。
 
 发布到 GitHub 时上传源码文件即可，不要上传数据库、密码或账单。仓库内容由 `.gitignore` 排除本机配置与生成文件。GitHub Actions 自动执行基础测试。
 

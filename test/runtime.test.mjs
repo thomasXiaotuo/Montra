@@ -7,7 +7,7 @@ import {join} from 'node:path';
 import {createServer} from 'node:http';
 import {root,version,appPort,browserCommand,releaseVersion,dockerEnabled} from '../runtime.mjs';
 import {npmCommand,probeService} from '../scripts/launch.mjs';
-import {createApp} from '../server.mjs';
+import {createTestApp as createApp,testLogin,browserLogin,TEST_PASSWORD} from './support.mjs';
 
 test('runtime rejects invalid ports and selects browser/installer for every platform',()=>{
   assert.equal(appPort('4321'),4321);

@@ -1,12 +1,14 @@
 {
   "name": "montra",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/*.test.mjs",
     "db:init": "node scripts/init-db.mjs",
+    "db:secure": "node scripts/secure-db.mjs",
+    "db:backup": "node scripts/backup.mjs",
     "package": "node scripts/package.mjs",
     "test:browser": "node test/browser-check.mjs",
     "launch": "node scripts/launch.mjs"

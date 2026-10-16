@@ -5,6 +5,10 @@ const t=(key,args={})=>translate(key,args,language);
 const errorText=error=>t(messageKey(error?.message||'无法连接，请稍后重试。'));
 let lastState,lastSqlResult,lastOfflineError,formFeedback,sqlFeedback;
 let editingEntry=null,editing=false,editFeedback=null;
+let authenticated=false;
+let accessToken='';try{accessToken=localStorage.getItem('montra.session')||'';}catch{}
+function storeToken(value){accessToken=value;try{if(value)localStorage.setItem('montra.session',value);else localStorage.removeItem('montra.session');}catch{}}
+window.addEventListener('storage',event=>{if(event.key==='montra.session'){accessToken=event.newValue||'';if(!accessToken)lockView();}});
 function applyStaticLanguage(){
   document.documentElement.lang=localeFor(language);
   document.querySelectorAll('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
@@ -20,7 +24,7 @@ $('month').value=localToday().slice(0,7);$('date').value=localToday();
 function text(tag,content,className){const el=document.createElement(tag);el.textContent=content;if(className)el.className=className;return el;}
 function message(key,error=false,args={}){formFeedback={key:messageKey(key),error,args};$('form-message').textContent=t(formFeedback.key,args);$('form-message').className=`form-message ${error?'error':'success'}`;}
 function toast(content){$('toast').textContent=t(messageKey(content));$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3500);}
-async function api(path,options={}){const res=await fetch(path,{...options,headers:{...options.headers,'X-Ledger-Language':language}});let data;try{data=await res.json();}catch{throw new Error(t('服务暂时不可用，请确认记账程序仍在运行。'));}if(!res.ok)throw new Error(data.error||t('操作失败，请重试。'));return data;}
+async function api(path,options={}){const res=await fetch(path,{...options,headers:{...options.headers,'X-Ledger-Language':language,'X-Ledger-Session':accessToken}});let data;try{data=await res.json();}catch{throw new Error(t('服务暂时不可用，请确认记账程序仍在运行。'));}if(!res.ok){if(res.status===401&&!path.startsWith('/api/auth/'))lockView();throw new Error(data.error||t('操作失败，请重试。'));}return data;}
 function saveAvailability(){
   $('save').disabled=!connected||saving;
   $('edit-save').disabled=!connected||editing;
@@ -55,7 +59,7 @@ function render(data){
   for(const r of data.breakdown){const b=document.createElement('button');b.type='button';b.className='breakdown-item';b.title=t('筛选 {category}',{category:r.category});const top=document.createElement('div');top.className='breakdown-top';top.append(text('span',r.category),text('span',money(r.amount)));const track=document.createElement('div');track.className='bar-track';const bar=document.createElement('div');bar.className='bar-fill';bar.style.width=`${Number(r.amount)/max*100}%`;track.append(bar);b.append(top,track);b.addEventListener('click',()=>{$('filter-category').value=r.category;$('filter-type').value='e';$('all-months').checked=false;page=1;refresh();$('records-card').scrollIntoView({behavior:'smooth',block:'start'});});$('breakdown').append(b);}
   $('updated').textContent=t('已同步 {time} · 每 10 秒更新',{time:new Date(data.updatedAt).toLocaleTimeString(localeFor(language),{hour:'2-digit',minute:'2-digit',second:'2-digit'})});
 }
-async function refresh(){const mine=++seq;try{const data=await api(`/api/state?${params()}`);if(mine!==seq)return;if(page>1&&!data.rows.length){page=1;return refresh();}render(data);}catch(error){if(mine===seq)showOffline(error);}}
+async function refresh(){if(!authenticated)return;const mine=++seq;try{const data=await api(`/api/state?${params()}`);if(mine!==seq||!authenticated)return;if(page>1&&!data.rows.length){page=1;return refresh();}render(data);}catch(error){if(mine===seq&&authenticated)showOffline(error);}}
 $('entry-form').addEventListener('submit',async e=>{
   e.preventDefault();if(saving||!connected)return;
   const amount=$('amount').value.trim();if(!/^\d{1,8}(\.\d{1,2})?$/.test(amount)||Number(amount)<=0){message(t('金额必须大于零，最多两位小数。'),true);$('amount').focus();return;}
@@ -107,7 +111,44 @@ $('edit-form').addEventListener('submit',async e=>{
   finally{editing=false;saveAvailability();}
 });
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
-setInterval(()=>{if(!document.hidden)refresh();},10000);refresh();
+setInterval(()=>{if(!document.hidden)refresh();},10000);
+
+function lockView(){
+  authenticated=false;storeToken('');connected=false;seq++;lastState=null;lastSqlResult=null;lastOfflineError=null;
+  document.body.classList.add('locked');
+  for(const id of ['edit-dialog','password-dialog'])if($(id).open)$(id).close();
+  $('records').replaceChildren();$('sql-results').replaceChildren();$('breakdown').replaceChildren();$('category-list').replaceChildren();$('category-chips').replaceChildren();
+  for(const id of ['income','expense','net','all-net'])$(id).textContent='—';
+  for(const id of ['amount','note','category','sql-code','password','current-password','new-password','confirm-password'])$(id).value='';
+  $('form-message').textContent='';$('sql-status').textContent='';$('toast').hidden=true;
+  saveAvailability();if(!$('auth-dialog').open)$('auth-dialog').showModal();$('access-password').focus();
+}
+const authPost=(path,data={})=>api(path,{method:'POST',headers:{'Content-Type':'application/json','X-Ledger-Request':'1'},body:JSON.stringify(data)});
+$('auth-dialog').addEventListener('cancel',e=>e.preventDefault());
+$('auth-form').addEventListener('submit',async e=>{
+  e.preventDefault();$('auth-submit').disabled=true;$('auth-message').textContent='';
+  try{
+    const result=await authPost('/api/auth/login',{password:$('access-password').value});storeToken(result.accessToken);$('access-password').value='';$('auth-message').textContent='';
+    authenticated=true;$('auth-dialog').close();document.body.classList.remove('locked');await refresh();
+  }catch(error){$('auth-message').textContent=errorText(error);}
+  finally{$('auth-submit').disabled=false;}
+});
+$('lock').addEventListener('click',async()=>{
+  $('lock').disabled=true;
+  try{await authPost('/api/auth/logout');lockView();}
+  catch(error){toast(errorText(error));}
+  finally{$('lock').disabled=false;}
+});
+$('change-password').addEventListener('click',()=>{$('password-message').textContent='';$('password-form').reset();$('password-dialog').showModal();});
+$('password-cancel').addEventListener('click',()=>$('password-dialog').close());
+$('password-form').addEventListener('submit',async e=>{
+  e.preventDefault();if($('new-password').value!==$('confirm-password').value){$('password-message').textContent=t('两次输入的新密码不一致。');return;}
+  $('password-save').disabled=true;$('password-cancel').disabled=true;
+  try{const result=await authPost('/api/auth/password',{currentPassword:$('current-password').value,newPassword:$('new-password').value});storeToken(result.accessToken);$('password-form').reset();$('password-dialog').close();toast('访问密码已修改，其他登录已失效。');}
+  catch(error){$('password-message').textContent=errorText(error);}
+  finally{$('password-save').disabled=false;$('password-cancel').disabled=false;}
+});
+api('/api/auth/status').then(status=>{if(status.authenticated){authenticated=true;document.body.classList.remove('locked');refresh();}else lockView();}).catch(()=>lockView());
 
 // The SQL editor never auto-executes a template or a draft.
 let sqlRunning=false;
@@ -140,7 +181,7 @@ async function executeEditor(){
   if(sqlRunning)return;
   if(!$('sql-code').value.trim()){setSqlStatus(t('先输入一段 SQL。'));return;}
   sqlRunning=true;$('sql-run').disabled=true;$('sql-run').textContent=t('正在执行…');lastSqlResult=null;setSqlStatus(t('正在执行代码，请勿重复提交…'));
-  try{const result=await api('/api/sql',{method:'POST',headers:{'Content-Type':'application/json','X-Ledger-Request':'1'},body:JSON.stringify({code:$('sql-code').value})});renderSql(result);await refresh();}
+  try{const result=await api('/api/sql',{method:'POST',headers:{'Content-Type':'application/json','X-Ledger-Request':'1'},body:JSON.stringify({code:$('sql-code').value})});if(!authenticated)return;renderSql(result);await refresh();}
   catch(error){setSqlStatus('执行结果未确认：{error}\n如果代码会修改账单，请先刷新核对，再决定是否重新执行。',true,{error:errorText(error)});await refresh();}
   finally{sqlRunning=false;$('sql-run').disabled=false;$('sql-run').textContent=t('▶ 执行 SQL');}
 }

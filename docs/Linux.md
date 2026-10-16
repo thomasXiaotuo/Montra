@@ -1,8 +1,16 @@
 # Montra Linux 使用说明（无需 Docker）
 
-版本号：**1.4.1-linux**；共同核心版本：**1.4.1**。Linux 版默认直接连接原生或远程 SQL Server，不需要安装或运行 Docker。与 Windows/macOS 版共享记账和 SQL 工作台功能。
+版本号：**1.5.0-linux**；共同核心版本：**1.5.0**。Linux 版默认直接连接原生或远程 SQL Server，不需要安装或运行 Docker。与 Windows/macOS 版共享记账和 SQL 工作台功能。
 
-这是需要 Node.js 与数据库的源码版本，并非免安装二进制软件。完整解压 montra-1.4.1-linux.zip，首次安装需要联网。不要从其他系统复制 node_modules。
+这是需要 Node.js 与数据库的源码版本，并非免安装二进制软件。完整解压 montra-1.5.0-linux.zip，首次安装需要联网。不要从其他系统复制 node_modules。
+
+## 1.5.0 安全升级与首次登录
+
+已有账本也须先停止旧版服务，在原连接配置下运行 `npm run db:secure`（Windows 可用 `npm.cmd run db:secure`）。它先备份全部账单，再创建记账专用账号及独立只读 SQL 账号，不改动原有记录。全新数据库先执行 `npm run db:init`。
+
+启动后打开终端提示的 `.montra/初始访问密码.json`，用其中的 password 登录。进入页面后可点击“修改访问密码”或“锁定账本”。访问密码与数据库管理密码不同；修改访问密码会删除初始文件并让其他登录失效。
+
+`.montra` 保存受本机权限保护的凭据、密码散列和备份，不能随安装包分享。日常网页拒绝管理员账号；SQL 工作台只查询，新增/修改使用表单。远程 SQL Server 必须配置可验证的证书。使用 `npm run db:backup` 导出账单备份；升级到同一电脑的新目录时安全复制自己的 .env 和 .montra，跨电脑请重新加固。更多内容见 [安全说明](../SECURITY.md)。
 
 ## 一、环境要求
 
@@ -58,7 +66,7 @@ sudo systemctl restart mssql-server
 进入完整解压目录（替换为实际路径），首次创建配置：
 
 ```sh
-cd "/你的路径/montra-1.4.1-linux"
+cd "/你的路径/montra-1.5.0-linux"
 test -f .env || cp .env.example .env
 nano .env
 ```
@@ -75,7 +83,7 @@ SQL_DATABASE=jizhang
 PORT=3210
 ```
 
-SQL_USE_DOCKER=0 禁用容器启动与容器密码读取；Linux 不填此项时也默认禁用。数据库密码须配置或在页面输入。本程序使用 SQL 账号认证。
+SQL_USE_DOCKER=0 禁用容器启动与容器密码读取；Linux 不填此项时也默认禁用。管理密码须在加固命令运行前配置，网页重连仅对应专用账号。本程序使用 SQL 账号认证。
 
 远程数据库不需本机安装 SQL Server，只需把 SQL_SERVER、SQL_PORT、SQL_USER、SQL_PASSWORD 改为实际值。Mac 上已有历史账单时，连接其可访问的 SQL Server，或先备份并恢复到 Linux，不能靠复制源码自动获得账单。
 
@@ -85,10 +93,11 @@ SQL_USE_DOCKER=0 禁用容器启动与容器密码读取；Linux 不填此项时
 npm ci --omit=dev
 ```
 
-已有 jizhang.dbo.jilu 表可以直接启动；全新数据库使用有建库权限的 SQL 账号初始化：
+已有 jizhang.dbo.jilu 表先运行 db:secure 再启动；全新数据库使用有建库权限的 SQL 账号初始化：
 
 ```sh
 npm run db:init
+npm run db:secure
 ```
 
 只创建缺失的数据库与表，不删除已有记录。新建数据库从空账单开始。使用权限受限账号时，请让管理员先建库建表。
@@ -158,5 +167,5 @@ EXIT
 - **没有自动打开浏览器**：手动打开启动窗口输出的地址即可；Linux 无图形桌面时不会有浏览器窗口。
 - **密码包含 `$` 或 `#`**：在 `.env` 中用单引号包住密码，避免配置解析歧义；不要把真实密码上传或发给他人。
 
-本软件仅供本机单人使用，HTTP 绑定 `127.0.0.1`。SQL 工作台会操作真实数据；不要向公网开放界面。
+本软件仅供本机单人使用，HTTP 绑定 `127.0.0.1`。SQL 工作台使用只读账号；不要向公网开放界面。
 

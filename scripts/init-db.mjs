@@ -1,8 +1,10 @@
 import sql from 'mssql';
 import {connectionConfig} from '../database.mjs';
 import {loadEnvironment} from '../runtime.mjs';
+import {protectEnvironment} from '../private-store.mjs';
+protectEnvironment();
 loadEnvironment();
-const config=await connectionConfig();
+const config=await connectionConfig({administrative:true});
 const name=config.database;
 if(!name || name.length>128)throw new Error('SQL_DATABASE 名称无效。');
 const master=new sql.ConnectionPool({...config,database:'master'});

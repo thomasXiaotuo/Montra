@@ -2,7 +2,7 @@
 
 <html lang="zh-CN">
 <head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/><title data-i18n="brandTitle">Montra · 收支账本</title><link href="/style.css" rel="stylesheet"/></head>
-<body>
+<body class="locked">
 <aside class="sidebar">
 <a class="brand" href="#overview"><span class="brand-mark" data-i18n="brandMark">M</span><span><span class="i18n-text" data-i18n="brandName">Montra</span><small data-i18n="brandTagline">Your money, your way.</small></span></a>
 <div class="side-label" data-i18n="我的账本">我的账本</div>
@@ -13,7 +13,7 @@
 <div class="sidebar-bottom"><span class="db-dot"></span><strong data-i18n="一份账本，两种方式">一份账本，两种方式</strong><p><span class="i18n-text" data-i18n="终端和界面共享同一数据库。">终端和界面共享同一数据库。</span><br/><span class="i18n-text" data-i18n="你熟悉的 SQL，随时可以继续写。">你熟悉的 SQL，随时可以继续写。</span></p><code id="database-label">jizhang / dbo.jilu</code></div>
 </aside>
 <main id="overview">
-<header class="topbar"><span class="eyebrow" data-i18n="把生活记清楚">把生活记清楚</span><div class="topbar-actions"><label class="language-picker" for="language"><span data-i18n="语言">语言</span><select aria-label="Language / 语言" id="language"><option value="zh">简体中文</option><option value="en">English</option></select></label><span class="connection pending" data-i18n="正在连接账本" id="connection">正在连接账本</span></div></header>
+<header class="topbar"><span class="eyebrow" data-i18n="把生活记清楚">把生活记清楚</span><div class="topbar-actions"><button id="change-password" class="text-btn" data-i18n="修改访问密码">修改访问密码</button><button id="lock" class="secondary" data-i18n="锁定账本">锁定账本</button><label class="language-picker" for="language"><span data-i18n="语言">语言</span><select aria-label="Language / 语言" id="language"><option value="zh">简体中文</option><option value="en">English</option></select></label><span class="connection pending" data-i18n="正在连接账本" id="connection">正在连接账本</span></div></header>
 <section class="heading"><div><h1><span class="i18n-text" data-i18n="收支概览">收支概览</span><span class="title-dot">.</span></h1><p data-i18n="每一笔有记录，每个月心中有数。">每一笔有记录，每个月心中有数。</p></div><div class="month-picker"><button aria-label="上个月" class="icon-btn" data-i18n-aria-label="上个月" id="prev-month">‹</button><input aria-label="统计月份" data-i18n-aria-label="统计月份" id="month" required="" type="month"/><button aria-label="下个月" class="icon-btn" data-i18n-aria-label="下个月" id="next-month">›</button><button class="text-btn" data-i18n="本月" id="this-month">本月</button></div></section>
 <div class="period-line"><span data-i18n="正在读取统计" id="period">正在读取统计</span><button class="text-btn" data-i18n="↻ 刷新" id="refresh">↻ 刷新</button></div>
 <section aria-label="收支汇总" class="stats" data-i18n-aria-label="收支汇总">
@@ -48,8 +48,8 @@
 </section>
 <section class="card sql-card" id="sql-card">
 <div class="card-heading"><div><span class="eyebrow" data-i18n="LEARN BY DOING">LEARN BY DOING</span><h2 data-i18n="SQL 工作台">SQL 工作台</h2></div><span class="sql-db" data-i18n="同一份账本 · jizhang" id="sql-database">同一份账本 · jizhang</span></div>
-<p class="sql-intro" data-i18n="直接写 SQL 查询或记账。代码会操作真实数据库，执行后收支概览自动更新。">直接写 SQL 查询或记账。代码会操作真实数据库，执行后收支概览自动更新。</p>
-<div class="sql-toolbar"><label data-i18n="快速填入" for="sql-example">快速填入</label><select id="sql-example"><option data-i18n="选择示例…" value="">选择示例…</option><option data-i18n="查看最近账单" value="list">查看最近账单</option><option data-i18n="统计收入和支出" value="summary">统计收入和支出</option><option data-i18n="查询餐饮支出" value="expense">查询餐饮支出</option><option data-i18n="用代码记一笔" value="insert">用代码记一笔</option></select><button class="text-btn" data-i18n="清空代码" id="sql-clear" type="button">清空代码</button></div>
+<p class="sql-intro" data-i18n="SQL 工作台使用独立只读账号，可以查询账单；新增和修改请使用记账表单。">SQL 工作台使用独立只读账号，可以查询账单；新增和修改请使用记账表单。</p>
+<div class="sql-toolbar"><label data-i18n="快速填入" for="sql-example">快速填入</label><select id="sql-example"><option data-i18n="选择示例…" value="">选择示例…</option><option data-i18n="查看最近账单" value="list">查看最近账单</option><option data-i18n="统计收入和支出" value="summary">统计收入和支出</option><option data-i18n="查询餐饮支出" value="expense">查询餐饮支出</option></select><button class="text-btn" data-i18n="清空代码" id="sql-clear" type="button">清空代码</button></div>
 <label class="sr-only" data-i18n="SQL 代码" for="sql-code">SQL 代码</label>
 <textarea autocapitalize="off" autocomplete="off" class="sql-editor" id="sql-code" maxlength="12000" spellcheck="false" wrap="off">SELECT TOP (50) *
 FROM dbo.jilu
@@ -61,6 +61,15 @@ ORDER BY riqi DESC, id DESC;</textarea>
 </section>
 <footer><span id="app-version">Montra</span><span data-i18n="金额沿用原账本单位，不进行汇率换算。结余不包含记账前已有的余额。">金额沿用原账本单位，不进行汇率换算。结余不包含记账前已有的余额。</span><span data-i18n="每 10 秒自动同步" id="updated">每 10 秒自动同步</span></footer>
 </main>
+<dialog class="edit-dialog auth-dialog" id="auth-dialog" aria-labelledby="auth-title">
+<h2 id="auth-title" data-i18n="解锁账本">解锁账本</h2>
+<p class="muted" data-i18n="请输入访问密码。首次密码保存在启动窗口提示的本机文件中。">请输入访问密码。首次密码保存在启动窗口提示的本机文件中。</p>
+<form id="auth-form"><label class="field" for="access-password"><span data-i18n="访问密码">访问密码</span><input id="access-password" type="password" autocomplete="current-password" maxlength="256" required/></label><p id="auth-message" class="form-message error" role="status"></p><button id="auth-submit" class="primary" type="submit" data-i18n="解锁">解锁</button></form>
+</dialog>
+<dialog class="edit-dialog" id="password-dialog" aria-labelledby="password-title">
+<h2 id="password-title" data-i18n="修改访问密码">修改访问密码</h2>
+<form id="password-form"><label class="field" for="current-password"><span data-i18n="当前访问密码">当前访问密码</span><input id="current-password" type="password" autocomplete="current-password" maxlength="256" required/></label><label class="field" for="new-password"><span data-i18n="新访问密码（至少 12 个字符）">新访问密码（至少 12 个字符）</span><input id="new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required/></label><label class="field" for="confirm-password"><span data-i18n="再次输入新密码">再次输入新密码</span><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required/></label><p id="password-message" class="form-message error" role="status"></p><div class="edit-actions"><button id="password-cancel" class="secondary" type="button" data-i18n="取消">取消</button><button id="password-save" class="primary" type="submit" data-i18n="保存修改">保存修改</button></div></form>
+</dialog>
 <dialog class="edit-dialog" id="edit-dialog" aria-labelledby="edit-title">
 <h2 id="edit-title" data-i18n="修改账单">修改账单</h2>
 <p class="muted small" data-i18n="修改后会更新原记录及相关统计。">修改后会更新原记录及相关统计。</p>

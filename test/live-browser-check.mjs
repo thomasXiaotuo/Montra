@@ -8,14 +8,16 @@ import {fileURLToPath} from 'node:url';
 import sql from 'mssql';
 import {chromium,webkit} from '@playwright/test';
 import {loadEnvironment} from '../runtime.mjs';
+import {provisionDatabase,quoteIdentifier,assertLimited} from '../database-security.mjs';
+import {createTestApp,browserLogin,testLogin} from './support.mjs';
 
 loadEnvironment();
 const {connectionConfig,getPool}=await import('../database.mjs');
-const config=await connectionConfig();
+const config=await connectionConfig({administrative:true});
 const name=`montra_browser_${randomBytes(6).toString('hex')}`;
 const admin=new sql.ConnectionPool({...config,database:'master'});
 await admin.connect();
-let browser,server,pool;
+let browser,server,pool,credentials;
 try{
   const existing=await admin.request().input('name',sql.NVarChar(128),name).query('SELECT DB_ID(@name) AS id');
   assert.equal(existing.recordset[0].id,null);
@@ -24,16 +26,18 @@ try{
   await promisify(execFile)(process.execPath,[fileURLToPath(new URL('../scripts/init-db.mjs',import.meta.url))],{
     env:{...process.env,SQL_PASSWORD:config.password},timeout:30000
   });
-  const {createApp}=await import('../server.mjs');
+  credentials=await provisionDatabase({...config,database:name},{persist:false,backup:false});
+  process.env.SQL_USER=credentials.app.user;process.env.SQL_PASSWORD=credentials.app.password;
+  process.env.SQL_CONSOLE_USER=credentials.console.user;process.env.SQL_CONSOLE_PASSWORD=credentials.console.password;
   const port=3213;
-  server=createApp(undefined,port);
+  server=createTestApp(undefined,port);
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
   const engine=process.env.BROWSER==='webkit'?webkit:chromium;
   browser=await engine.launch({headless:true,...(engine===chromium&&process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
   const page=await browser.newPage({locale:'zh-CN',viewport:{width:1440,height:1000}});
   const errors=[];
   page.on('pageerror',error=>errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${port}`);
+  await page.goto(`http://127.0.0.1:${port}`);await browserLogin(page);
   await page.waitForFunction(()=>document.getElementById('connection').textContent.includes('账本已连接'));
   assert.equal(await page.locator('#record-count').textContent(),'0 笔');
   await page.fill('#amount','14.48');
@@ -42,7 +46,7 @@ try{
   await page.locator('#note').press('Meta+Enter');
   await page.waitForFunction(()=>document.getElementById('form-message').textContent.includes('已保存'));
   await page.waitForFunction(()=>document.getElementById('expense').textContent==='14.48');
-  pool=await getPool();
+  pool=new sql.ConnectionPool({...config,database:name});await pool.connect();
   let result=await pool.request().query('SELECT COUNT(*) AS count, CONVERT(varchar(30),SUM(amount)) AS amount FROM dbo.jilu');
   assert.equal(result.recordset[0].count,1);
   assert.equal(result.recordset[0].amount,'14.48');
@@ -62,7 +66,8 @@ try{
   await page.waitForFunction(()=>document.getElementById('sql-status').textContent.includes('执行完成'));
   assert.deepEqual(await page.locator('#sql-results td').allTextContents(),['2','中文 SQL']);
   const snapshot=async id=>(await pool.request().input('id',sql.Int,id).query("SELECT id,CONVERT(char(10),riqi,23) AS riqi,type,CONVERT(varchar(30),amount) AS amount,category,note FROM dbo.jilu WHERE id=@id")).recordset[0];
-  const update=async(id,entry,original)=>fetch(`http://127.0.0.1:${port}/api/entries/${id}`,{method:'POST',headers:{'Content-Type':'application/json','X-Ledger-Request':'1'},body:JSON.stringify({...entry,original})});
+  const cookie=await testLogin(`http://127.0.0.1:${port}`);
+  const update=async(id,entry,original)=>fetch(`http://127.0.0.1:${port}/api/entries/${id}`,{method:'POST',headers:{...cookie,'Content-Type':'application/json','X-Ledger-Request':'1'},body:JSON.stringify({...entry,original})});
   const today=await page.inputValue('#date');
   const previousMonth=new Date(`${today.slice(0,7)}-01T12:00:00Z`);previousMonth.setUTCMonth(previousMonth.getUTCMonth()-1);
   const pastDate=previousMonth.toISOString().slice(0,10);
@@ -148,13 +153,29 @@ try{
   await page.screenshot({path:`test-results/live-${engine.name()}.png`,fullPage:true});
   original=await snapshot(2);await pool.request().query('DELETE FROM dbo.jilu WHERE id=2');
   assert.equal((await update(2,original,original)).status,409);
+  const {executeSql}=await import('../database.mjs');
+  for(const code of [
+    'UPDATE dbo.jilu SET amount=amount WHERE 1=0;',
+    'DELETE FROM dbo.jilu WHERE 1=0;',
+    "INSERT INTO dbo.jilu (riqi,type,amount,category) SELECT GETDATE(),'e',1,N'test' WHERE 1=0;",
+    'CREATE TABLE dbo.must_not_create (id int);',
+    'DROP TABLE dbo.jilu;'
+  ]){
+    const denied=await executeSql(code);assert.equal(denied.ok,false,code);assert.ok(denied.error);
+  }
+  await assert.rejects(assertLimited(pool),e=>e.status===503);
+  const appPool=await getPool();
+  await assert.rejects(appPool.request().query('DELETE FROM dbo.jilu WHERE 1=0;'));
+  assert.equal((await pool.request().query('SELECT COUNT(*) AS count FROM dbo.jilu')).recordset[0].count,56);
   assert.deepEqual(errors,[]);
   console.log(`PASS (${engine.name()}): real create/edit, all fields, stable IDs, cancellation, cross-month totals, Command/Ctrl+Enter, Unicode/null notes, polling draft retention, atomic conflicts (external update/delete/whitespace), paging and persistence. Personal ledger untouched.`);
 }finally{
   if(browser)await browser.close();
   if(server?.listening)await new Promise(resolve=>server.close(resolve));
-  if(server)await (pool||await getPool().catch(()=>null))?.close();
+  if(pool)await pool.close();
+  if(server)await (await getPool().catch(()=>null))?.close();
   try{
     await admin.request().query(`IF DB_ID(N'${name}') IS NOT NULL BEGIN ALTER DATABASE [${name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [${name}]; END`);
+    if(credentials)for(const role of ['app','console'])await admin.request().query(`DROP LOGIN ${quoteIdentifier(credentials[role].user)}`);
   }finally{await admin.close();}
 }

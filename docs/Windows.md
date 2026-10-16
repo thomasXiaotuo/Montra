@@ -1,8 +1,16 @@
 # Montra Windows 使用说明（无需 Docker）
 
-版本号：**1.4.1-windows**；共同核心版本：**1.4.1**。Windows 版默认直接连接 SQL Server，不调用、不要求安装 Docker。Mac 和 Linux 保持各自的环境方案。
+版本号：**1.5.0-windows**；共同核心版本：**1.5.0**。Windows 版默认直接连接 SQL Server，不调用、不要求安装 Docker。Mac 和 Linux 保持各自的环境方案。
 
-这是需要安装 Node.js 和数据库的源码版本，不是免安装 EXE。解压 `montra-1.4.1-windows.zip` 并保留完整文件夹。首次安装需联网；完成后可以本机使用。
+这是需要安装 Node.js 和数据库的源码版本，不是免安装 EXE。解压 `montra-1.5.0-windows.zip` 并保留完整文件夹。首次安装需联网；完成后可以本机使用。
+
+## 1.5.0 安全升级与首次登录
+
+已有账本也须先停止旧版服务，在原连接配置下运行 `npm run db:secure`（Windows 可用 `npm.cmd run db:secure`）。它先备份全部账单，再创建记账专用账号及独立只读 SQL 账号，不改动原有记录。全新数据库先执行 `npm run db:init`。
+
+启动后打开终端提示的 `.montra/初始访问密码.json`，用其中的 password 登录。进入页面后可点击“修改访问密码”或“锁定账本”。访问密码与数据库管理密码不同；修改访问密码会删除初始文件并让其他登录失效。
+
+`.montra` 保存受本机权限保护的凭据、密码散列和备份，不能随安装包分享。日常网页拒绝管理员账号；SQL 工作台只查询，新增/修改使用表单。远程 SQL Server 必须配置可验证的证书。使用 `npm run db:backup` 导出账单备份；升级到同一电脑的新目录时安全复制自己的 .env 和 .montra，跨电脑请重新加固。更多内容见 [安全说明](../SECURITY.md)。
 
 ## 一、安装运行环境
 
@@ -51,7 +59,7 @@ Test-NetConnection 127.0.0.1 -Port 1433
 在 PowerShell 进入解压目录（路径换成自己的；本次修改的源码目录是 `C:\zhuomian\meC\Montra`）：
 
 ```powershell
-Set-Location "C:\你的解压路径\montra-1.4.1-windows"
+Set-Location "C:\你的解压路径\montra-1.5.0-windows"
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
 notepad .env
 ```
@@ -68,7 +76,7 @@ SQL_DATABASE=jizhang
 PORT=3210
 ```
 
-`SQL_USE_DOCKER=0` 明确关闭容器启动和密码自动读取；密码必须配置或在页面输入。本程序使用 SQL 账号认证，不支持 Windows 集成认证。
+`SQL_USE_DOCKER=0` 明确关闭容器启动和密码自动读取；管理密码须在加固命令运行前配置，网页重连仅对应专用账号。本程序使用 SQL 账号认证，不支持 Windows 集成认证。
 
 连接远程 SQL Server 也不需要本机 Docker：把 SQL_SERVER、SQL_PORT、SQL_USER、SQL_PASSWORD 改成管理员提供的实际值。不要把真实 .env 和密码放进分发包。
 
@@ -78,10 +86,11 @@ PORT=3210
 npm.cmd ci --omit=dev
 ```
 
-已有 `jizhang.dbo.jilu` 账本直接启动即可。全新的 SQL Server 第一次需要建库建表：
+已有 `jizhang.dbo.jilu` 账本先运行 db:secure 再启动。全新的 SQL Server 第一次需要建库建表：
 
 ```powershell
 npm.cmd run db:init
+npm.cmd run db:secure
 ```
 
 初始化只创建缺失的数据库和表，不删除或覆盖已有记录。`sa` 有初始化权限；若使用自建账号，应让数据库管理员先建好库表并授予所需权限。新库是空的，复制软件不会自动导入 Mac 上的旧账单。
@@ -129,5 +138,5 @@ npm.cmd run db:init
 - **没有自动打开浏览器**：手动打开启动窗口输出的地址即可；Linux 无图形桌面时不会有浏览器窗口。
 - **密码包含 `$` 或 `#`**：在 `.env` 中用单引号包住密码，保持 Docker Compose 和 Node.js 读取一致；不要把真实密码上传或发给他人。
 
-本软件仅供本机单人使用，HTTP 绑定 `127.0.0.1`。SQL 工作台会操作真实数据；不要向公网开放界面。
+本软件仅供本机单人使用，HTTP 绑定 `127.0.0.1`。SQL 工作台使用只读账号；不要向公网开放界面。
 

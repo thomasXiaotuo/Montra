@@ -4,7 +4,7 @@ import {homedir} from 'node:os';
 import {spawn, execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
-import {root, loadEnvironment, appPort, releaseVersion, openBrowser, dockerEnabled} from '../runtime.mjs';
+import {root, loadEnvironment, appPort, version, releaseVersion, openBrowser, dockerEnabled} from '../runtime.mjs';
 
 const exec = promisify(execFile);
 export function npmCommand(platform = process.platform) {
@@ -52,6 +52,7 @@ export async function launch() {
   console.log(`Montra ${releaseVersion}\n${url}`);
   const running = await probeService(url);
   if (running) {
+    if(running.version!==version||running.securityVersion!==1)throw new Error('An older service is still running. Stop its terminal with Ctrl+C, then launch again. / 旧版服务仍在运行，请先在旧终端按 Ctrl+C，再启动加固版。');
     console.log(`Already running / 已在运行：${running.releaseVersion || running.version}`);
     openBrowser(url);
     return;
