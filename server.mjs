@@ -3,8 +3,8 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {loadEnvironment,appPort,version,edition,releaseVersion,openBrowser,dockerEnabled} from './runtime.mjs';
 import {detectLanguage,translate} from './public/i18n.js';
-import {UserError,validateEntry,validateFilters} from './domain.mjs';
-import {readState,insertEntry,setPassword,executeSql} from './database.mjs';
+import {UserError,validateEntry,validateFilters,validateEntryId,validateEdit} from './domain.mjs';
+import {readState,insertEntry,updateEntry,setPassword,executeSql} from './database.mjs';
 loadEnvironment();
 const port=appPort();
 const origin=`http://127.0.0.1:${port}`;
@@ -15,7 +15,7 @@ async function body(req) {
   for await (const part of req) {text+=part; if (Buffer.byteLength(text)>16384) throw new UserError('输入内容过长。',413);}
   try {return JSON.parse(text);} catch {throw new UserError('提交格式无效。');}
 }
-export function createApp(deps={readState,insertEntry,setPassword,executeSql}, allowedPort=port) {
+export function createApp(deps={readState,insertEntry,updateEntry,setPassword,executeSql}, allowedPort=port) {
   return http.createServer(async (req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
@@ -30,6 +30,8 @@ export function createApp(deps={readState,insertEntry,setPassword,executeSql}, a
         if (!req.headers['content-type']?.startsWith('application/json')) throw new UserError('提交格式无效。',415);
         if(url.pathname==='/api/sql') {const data=await body(req);return send(res,200,await deps.executeSql(data?.code));}
         if(url.pathname==='/api/entries') {const entry=validateEntry(await body(req)); return send(res,201,await deps.insertEntry(entry));}
+        const editPath=/^\/api\/entries\/([^/]+)$/.exec(url.pathname);
+        if(editPath) {const id=validateEntryId(editPath[1]);const {entry,original}=validateEdit(await body(req));return send(res,200,await deps.updateEntry(id,entry,original));}
         if(url.pathname==='/api/connect') {const data=await body(req);await deps.setPassword(data.password);return send(res,200,{ok:true});}
       }
       if(req.method==='GET' && url.pathname==='/api/health') return send(res,200,{app:'montra',version,edition,releaseVersion,platform:process.platform,dockerEnabled:dockerEnabled()});

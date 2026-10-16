@@ -60,5 +60,21 @@ ORDER BY riqi DESC, id DESC;</textarea>
 <div class="sql-results" id="sql-results"></div>
 </section>
 <footer><span id="app-version">Montra</span><span data-i18n="金额沿用原账本单位，不进行汇率换算。结余不包含记账前已有的余额。">金额沿用原账本单位，不进行汇率换算。结余不包含记账前已有的余额。</span><span data-i18n="每 10 秒自动同步" id="updated">每 10 秒自动同步</span></footer>
-</main><div aria-live="polite" hidden="" id="toast" role="status"></div><script src="/app.js" type="module"></script>
+</main>
+<dialog class="edit-dialog" id="edit-dialog" aria-labelledby="edit-title">
+<h2 id="edit-title" data-i18n="修改账单">修改账单</h2>
+<p class="muted small" data-i18n="修改后会更新原记录及相关统计。">修改后会更新原记录及相关统计。</p>
+<form id="edit-form" novalidate>
+<fieldset class="edit-fields" id="edit-fields">
+<fieldset class="type-toggle"><legend class="sr-only" data-i18n="收支类型">收支类型</legend><label><input name="type" type="radio" value="e"/><span data-i18n="↗ 支出">↗ 支出</span></label><label><input name="type" type="radio" value="i"/><span data-i18n="↙ 收入">↙ 收入</span></label></fieldset>
+<label class="field" for="edit-amount"><span data-i18n="金额">金额</span><input id="edit-amount" inputmode="decimal" maxlength="11" autocomplete="off" required/><small data-i18n="金额填正数，最多两位小数">金额填正数，最多两位小数</small></label>
+<label class="field" for="edit-date"><span data-i18n="日期">日期</span><input id="edit-date" type="date" required/></label>
+<label class="field" for="edit-category"><span data-i18n="类别">类别</span><input id="edit-category" list="category-list" maxlength="50" autocomplete="off" required/></label>
+<label class="field" for="edit-note"><span data-i18n="备注">备注</span><span class="optional" data-i18n="选填">选填</span><input id="edit-note" maxlength="200" autocomplete="off"/></label>
+</fieldset>
+<p id="edit-message" class="form-message error" role="status" aria-live="polite"></p>
+<div class="edit-actions"><button id="edit-cancel" class="secondary" type="button" data-i18n="取消">取消</button><button id="edit-save" class="primary" type="submit" data-i18n="保存修改">保存修改</button></div>
+</form>
+</dialog>
+<div aria-live="polite" hidden="" id="toast" role="status"></div><script src="/app.js" type="module"></script>
 </body></html>

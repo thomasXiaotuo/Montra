@@ -84,6 +84,30 @@ export async function insertEntry(entry) {
   return result.recordset[0];
 }
 
+export async function updateEntry(id,entry,original) {
+  const pool=await getPool();
+  const request=pool.request().input('id',sql.Int,id);
+  for(const [prefix,value] of [['',entry],['original_',original]]) {
+    request.input(`${prefix}date`,sql.VarChar(10),value.riqi)
+      .input(`${prefix}type`,sql.VarChar(1),value.type)
+      .input(`${prefix}amount`,sql.Decimal(10,2),Number(value.amount))
+      .input(`${prefix}category`,sql.NVarChar(50),value.category)
+      .input(`${prefix}note`,sql.NVarChar(200),value.note);
+  }
+  // Compare and update atomically so a stale dialog cannot overwrite an external SQL edit.
+  const result=await request.query(`UPDATE dbo.jilu
+    SET riqi=CONVERT(date,@date),type=@type,amount=@amount,category=@category,note=@note
+    OUTPUT INSERTED.id
+    WHERE id=@id AND riqi=CONVERT(date,@original_date)
+      AND type COLLATE Latin1_General_100_BIN2=@original_type AND amount=@original_amount
+      AND category COLLATE Latin1_General_100_BIN2=@original_category
+      AND DATALENGTH(category)=DATALENGTH(@original_category)
+      AND ((note IS NULL AND @original_note IS NULL) OR
+        (note COLLATE Latin1_General_100_BIN2=@original_note AND DATALENGTH(note)=DATALENGTH(@original_note)));`);
+  if(!result.recordset.length)throw new UserError('账单已被修改或删除，请刷新后重新编辑。',409);
+  return result.recordset[0];
+}
+
 let consoleBusy = false;
 export async function executeSql(code) {
   const batches = splitBatches(code);

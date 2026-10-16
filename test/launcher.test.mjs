@@ -1,13 +1,14 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,copyFile,writeFile,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,mkdir,copyFile,writeFile,rm,readFile,realpath,access} from 'node:fs/promises';
+import {constants} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,delimiter} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 
 test('platform entry works from another directory with Chinese/spaces, loads .env and exits on child failure',async t=>{
-  const fixture=await mkdtemp(join(tmpdir(),'Montra 测试 space '));
+  const fixture=await realpath(await mkdtemp(join(tmpdir(),'Montra 测试 space ')));
   t.after(()=>rm(fixture,{recursive:true,force:true}));
   await mkdir(join(fixture,'scripts'));
   await mkdir(join(fixture,'node_modules','mssql'),{recursive:true});
@@ -43,4 +44,27 @@ test('platform entry works from another directory with Chinese/spaces, loads .en
   // Child failures must propagate through the wrapper rather than report success.
   env.MONTRA_FIXTURE_EXIT='1';
   await assert.rejects(run(),error=>error.code===1);
+});
+
+test('macOS double-click launchers are executable and propagate child failures', {skip:process.platform!=='darwin'}, async t=>{
+  const fixture=await realpath(await mkdtemp(join(tmpdir(),'Montra Mac 中文 space ')));
+  t.after(()=>rm(fixture,{recursive:true,force:true}));
+  await mkdir(join(fixture,'scripts'));
+  const resultPath=join(fixture,'result.json');
+  await writeFile(join(fixture,'scripts','launch.mjs'),`import {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({cwd:process.cwd()}));process.exitCode=Number(process.env.MONTRA_FIXTURE_EXIT||0);`);
+  for(const name of ['start.command','打开记账.command']){
+    const source=new URL(`../${name}`,import.meta.url);
+    await access(source,constants.X_OK);
+    await copyFile(source,join(fixture,name));
+  }
+  for(const name of ['start.command','打开记账.command']){
+    const run=exit=>{
+      const result=promisify(execFile)(join(fixture,name),[],{cwd:tmpdir(),env:{...process.env,MONTRA_FIXTURE_EXIT:String(exit)},timeout:15000});
+      result.child.stdin.end();
+      return result;
+    };
+    await run(0);
+    assert.deepEqual(JSON.parse(await readFile(resultPath,'utf8')),{cwd:fixture});
+    await assert.rejects(run(1),error=>error.code===1);
+  }
 });

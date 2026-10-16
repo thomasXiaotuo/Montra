@@ -1,4 +1,4 @@
-import {chromium} from '@playwright/test';
+import {chromium,webkit} from '@playwright/test';
 import assert from 'node:assert/strict';
 import {createApp} from '../server.mjs';
 import {validateEntry} from '../domain.mjs';
@@ -26,7 +26,8 @@ const server=createApp({
 await new Promise(resolve=>server.listen(3212,'127.0.0.1',resolve));
 let browser;
 try{
-  browser=await chromium.launch({...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{}),headless:true});
+  const engine=process.env.BROWSER==='webkit'?webkit:chromium;
+  browser=await engine.launch({...(engine===chromium&&process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{}),headless:true});
   const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'zh-CN'});
   await context.addInitScript(()=>{const NativeDate=Date;class FixedDate extends NativeDate{constructor(...args){super(...(args.length?args:['2026-10-13T12:00:00-07:00']));}static now(){return new NativeDate('2026-10-13T12:00:00-07:00').getTime();}}window.Date=FixedDate;});
   const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));

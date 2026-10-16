@@ -1,0 +1,89 @@
+// Real HTTP/browser/SQL integration using a uniquely named disposable database.
+// Never writes to the configured personal ledger.
+import assert from 'node:assert/strict';
+import {randomBytes} from 'node:crypto';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {fileURLToPath} from 'node:url';
+import sql from 'mssql';
+import {chromium,webkit} from '@playwright/test';
+import {loadEnvironment} from '../runtime.mjs';
+
+loadEnvironment();
+const {connectionConfig,getPool}=await import('../database.mjs');
+const config=await connectionConfig();
+const name=`montra_browser_${randomBytes(6).toString('hex')}`;
+const admin=new sql.ConnectionPool({...config,database:'master'});
+await admin.connect();
+let browser,server,pool;
+try{
+  const existing=await admin.request().input('name',sql.NVarChar(128),name).query('SELECT DB_ID(@name) AS id');
+  assert.equal(existing.recordset[0].id,null);
+  process.env.SQL_DATABASE=name;
+  // Pass the resolved password privately to the initializer, never to logs.
+  await promisify(execFile)(process.execPath,[fileURLToPath(new URL('../scripts/init-db.mjs',import.meta.url))],{
+    env:{...process.env,SQL_PASSWORD:config.password},timeout:30000
+  });
+  const {createApp}=await import('../server.mjs');
+  const port=3213;
+  server=createApp(undefined,port);
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
+  const engine=process.env.BROWSER==='webkit'?webkit:chromium;
+  browser=await engine.launch({headless:true,...(engine===chromium&&process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
+  const page=await browser.newPage({locale:'zh-CN',viewport:{width:1440,height:1000}});
+  const errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(`http://127.0.0.1:${port}`);
+  await page.waitForFunction(()=>document.getElementById('connection').textContent.includes('账本已连接'));
+  assert.equal(await page.locator('#record-count').textContent(),'0 笔');
+  await page.fill('#amount','14.48');
+  await page.fill('#category',"餐饮 O'Brien");
+  await page.fill('#note','真实连接测试 50%_ [中文]');
+  await page.locator('#note').press('Meta+Enter');
+  await page.waitForFunction(()=>document.getElementById('form-message').textContent.includes('已保存'));
+  await page.waitForFunction(()=>document.getElementById('expense').textContent==='14.48');
+  pool=await getPool();
+  let result=await pool.request().query('SELECT COUNT(*) AS count, CONVERT(varchar(30),SUM(amount)) AS amount FROM dbo.jilu');
+  assert.equal(result.recordset[0].count,1);
+  assert.equal(result.recordset[0].amount,'14.48');
+  await page.locator('input[name="type"][value="i"]').check();
+  await page.fill('#amount','100.01');
+  await page.fill('#category','收入');
+  await page.click('#save');
+  await page.waitForFunction(()=>document.getElementById('income').textContent==='100.01');
+  assert.equal(await page.locator('#net').textContent(),'85.53');
+  await page.fill('#search','50%_ [中文]');
+  await page.waitForFunction(()=>document.getElementById('record-count').textContent==='1 笔');
+  assert.match(await page.locator('#records').textContent(),/真实连接测试/);
+  await page.fill('#search','');
+  await page.waitForFunction(()=>document.getElementById('record-count').textContent==='2 笔');
+  await page.fill('#sql-code',"SELECT COUNT(*) AS count FROM dbo.jilu;\nGO\nSELECT N'中文 SQL' AS note;");
+  await page.locator('#sql-code').press('Meta+Enter');
+  await page.waitForFunction(()=>document.getElementById('sql-status').textContent.includes('执行完成'));
+  assert.deepEqual(await page.locator('#sql-results td').allTextContents(),['2','中文 SQL']);
+  // Exercise paging against actual SQL Server, confined to the disposable DB.
+  const today=await page.inputValue('#date');
+  await pool.request().input('today',sql.VarChar(10),today).query(`
+    INSERT INTO dbo.jilu (riqi,type,amount,category,note)
+    SELECT TOP (55) CONVERT(date,@today),'e',0.01,N'分页测试',N'isolated'
+    FROM sys.all_objects;
+  `);
+  await page.click('#refresh');
+  await page.waitForFunction(()=>document.getElementById('record-count').textContent==='57 笔');
+  assert.equal(await page.locator('#records tr').count(),50);
+  await page.click('#page-next');
+  await page.waitForFunction(()=>document.getElementById('page-info').textContent.includes('第 2 页'));
+  assert.equal(await page.locator('#records tr').count(),7);
+  await page.reload();
+  await page.waitForFunction(()=>document.getElementById('record-count').textContent==='57 笔');
+  await page.screenshot({path:`test-results/live-${engine.name()}.png`,fullPage:true});
+  assert.deepEqual(errors,[]);
+  console.log(`PASS (${engine.name()}): real database save, Mac Command+Enter, exact decimals, Unicode, literal search, SQL GO, 57-row paging and reload persistence. Personal ledger untouched.`);
+}finally{
+  if(browser)await browser.close();
+  if(server?.listening)await new Promise(resolve=>server.close(resolve));
+  if(server)await (pool||await getPool().catch(()=>null))?.close();
+  try{
+    await admin.request().query(`IF DB_ID(N'${name}') IS NOT NULL BEGIN ALTER DATABASE [${name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [${name}]; END`);
+  }finally{await admin.close();}
+}

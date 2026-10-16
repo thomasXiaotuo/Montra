@@ -143,6 +143,15 @@ npx playwright install chromium
 npm run test:browser
 ```
 
+macOS 上还可检查 WebKit（Safari 使用的浏览器引擎）：
+
+```sh
+npx playwright install webkit
+BROWSER=webkit npm run test:browser
+```
+
+需要验证真实保存与浏览器到数据库的完整流程时，可在 SQL Server 已运行、账号有建库权限的环境执行 `node test/live-browser-check.mjs`。它新建随机命名的独立测试库，测试金额、中文、⌘+Enter、SQL、搜索和分页，完成后删除测试库，不写入原有账本。设置 `BROWSER=webkit` 可改用 WebKit；Chrome 可通过 `CHROME_PATH` 指定。
+
 浏览器测试使用内存中的隔离账单，不连接个人账本。需要使用已有 Chrome 时，可设置 `CHROME_PATH` 为浏览器可执行文件路径。
 
 有本地数据库时，可以运行额外的真实连接验证：
