@@ -46,8 +46,8 @@ function render(data){
   $('records').replaceChildren();
   if(!data.rows.length){const tr=document.createElement('tr'),td=text('td',t('这里还没有账单。换个筛选条件，或在左边记下第一笔。'),'empty-cell');td.colSpan=4;tr.append(td);$('records').append(tr);}
   for(const r of data.rows){const tr=document.createElement('tr'),detail=document.createElement('td');detail.append(text('div',formatDate(r.riqi),'date'),text('div',r.note||t('无备注'),'note'));const actions=text('div','','record-actions');const edit=text('button',t('编辑'),'secondary edit-entry');edit.type='button';edit.dataset.entryId=r.id;edit.setAttribute('aria-label',t('编辑账单 #{id}',{id:r.id}));edit.addEventListener('click',()=>openEdit(r));actions.append(text('div',`#${r.id}`,'record-id'),edit);detail.append(actions);const cat=document.createElement('td');const tag=text('span',r.category,'category-tag');tag.title=r.category;cat.append(tag);const type=document.createElement('td');type.append(text('span',r.type==='i'?t('收入'):t('支出'),r.type==='i'?'badge income':'badge'));const amt=text('td',`${r.type==='i'?'+':'−'}${money(r.amount)}`,`money ${r.type==='i'?'amount-income':'amount-expense'}`);tr.append(detail,cat,type,amt);$('records').append(tr);}
-  $('record-count').textContent=t('{count} 笔',{count:data.total});$('page-info').textContent=t('第 {page} 页 / {pages} 页 · 每页 50 笔',{page,pages:Math.max(1,Math.ceil(data.total/50))});
-  $('page-prev').disabled=page<=1;$('page-next').disabled=page*50>=data.total;
+  $('record-count').textContent=t('{count} 笔',{count:data.total});$('page-info').textContent=t('第 {page} 页 / {pages} 页 · 每页 10 笔',{page,pages:Math.max(1,Math.ceil(data.total/10))});
+  $('page-prev').disabled=page<=1;$('page-next').disabled=page*10>=data.total;
   const scopes=[$('all-months').checked?t('所有月份'):month,{'':t('全部收支'),i:t('收入'),e:t('支出')}[$('filter-type').value],chosen||t('全部类别')];if($('search').value)scopes.push(t('搜索：{query}',{query:$('search').value}));$('filter-description').textContent=scopes.join(' · ');
   $('breakdown').replaceChildren();
   if(!data.breakdown.length)$('breakdown').append(text('p',t('这个月还没有支出记录。'),'empty-text'));

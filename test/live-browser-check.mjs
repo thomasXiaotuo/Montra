@@ -118,12 +118,33 @@ try{
   `);
   await page.click('#refresh');
   await page.waitForFunction(()=>document.getElementById('record-count').textContent==='57 笔');
-  assert.equal(await page.locator('#records tr').count(),50);
-  await page.click('#page-next');
-  await page.waitForFunction(()=>document.getElementById('page-info').textContent.includes('第 2 页'));
-  assert.equal(await page.locator('#records tr').count(),7);
+  assert.equal(await page.locator('#records tr').count(),10);
+  assert.equal(await page.locator('#page-info').textContent(),'第 1 页 / 6 页 · 每页 10 笔');
+  assert.equal(await page.locator('#page-prev').isDisabled(),true);
+  const ids=[];
+  for(let currentPage=1;currentPage<=6;currentPage++){
+    if(currentPage>1){
+      await page.click('#page-next');
+      await page.waitForFunction(n=>document.getElementById('page-info').textContent.startsWith(`第 ${n} 页`),currentPage);
+    }
+    const pageIds=await page.locator('.edit-entry').evaluateAll(buttons=>buttons.map(b=>Number(b.dataset.entryId)));
+    assert.equal(pageIds.length,currentPage===6?7:10);
+    ids.push(...pageIds);
+  }
+  assert.equal(new Set(ids).size,57);
+  assert.deepEqual(ids,Array.from({length:57},(_,i)=>57-i));
+  assert.equal(await page.locator('#page-next').isDisabled(),true);
+  await page.click('#page-prev');
+  await page.waitForFunction(()=>document.getElementById('page-info').textContent.startsWith('第 5 页'));
+  assert.equal(await page.locator('#records tr').count(),10);
+  await page.selectOption('#filter-category','收入');
+  await page.waitForFunction(()=>document.getElementById('record-count').textContent==='1 笔');
+  assert.equal(await page.locator('#page-info').textContent(),'第 1 页 / 1 页 · 每页 10 笔');
+  assert.equal(await page.locator('#page-prev').isDisabled(),true);
+  assert.equal(await page.locator('#page-next').isDisabled(),true);
   await page.reload();
   await page.waitForFunction(()=>document.getElementById('record-count').textContent==='57 笔');
+  assert.equal(await page.locator('#records tr').count(),10);
   await page.screenshot({path:`test-results/live-${engine.name()}.png`,fullPage:true});
   original=await snapshot(2);await pool.request().query('DELETE FROM dbo.jilu WHERE id=2');
   assert.equal((await update(2,original,original)).status,409);

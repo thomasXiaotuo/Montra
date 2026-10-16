@@ -50,7 +50,7 @@ export async function readState(f) {
     .input('start',sql.VarChar(10),f.start).input('end',sql.VarChar(10),f.end)
     .input('today',sql.VarChar(10),f.today).input('type',sql.VarChar(1),f.type)
     .input('category',sql.NVarChar(50),f.category).input('q',sql.NVarChar(402),literalSearch(f.q))
-    .input('all',sql.Bit,f.all).input('offset',sql.Int,(f.page-1)*50);
+    .input('all',sql.Bit,f.all).input('offset',sql.Int,(f.page-1)*10);
   const result = await r.query(`
     SELECT CONVERT(varchar(50), COALESCE(SUM(CASE WHEN type='i' THEN amount ELSE 0 END),0)) AS income,
            CONVERT(varchar(50), COALESCE(SUM(CASE WHEN type='e' THEN amount ELSE 0 END),0)) AS expense,
@@ -67,7 +67,7 @@ export async function readState(f) {
     FROM dbo.jilu WHERE (@all=1 OR (riqi >= CONVERT(date,@start) AND riqi < CONVERT(date,@end)))
     AND (@type='' OR type=@type) AND (@category='' OR category=@category)
     AND (category LIKE @q ESCAPE '~' OR COALESCE(note,N'') LIKE @q ESCAPE '~')
-    ORDER BY riqi DESC,id DESC OFFSET @offset ROWS FETCH NEXT 50 ROWS ONLY;
+    ORDER BY riqi DESC,id DESC OFFSET @offset ROWS FETCH NEXT 10 ROWS ONLY;
   `);
   const rows = result.recordsets[4];
   return {database:process.env.SQL_DATABASE || 'jizhang',summary:result.recordsets[0][0], allNet:result.recordsets[1][0].net,

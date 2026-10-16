@@ -1,16 +1,16 @@
 # Montra
 
-## 1.4.0 · 三平台版本
+## 1.4.1 · 三平台版本
 
 | 版本 | 版本号 | 启动入口 | 从环境、安装到使用 |
 |---|---|---|---|
-| macOS | 1.4.0-macos | 打开记账.command / start.command | [macOS 使用说明](docs/macOS.md) |
-| Linux | 1.4.0-linux | sh start.sh | [Linux 使用说明](docs/Linux.md) |
-| Windows | 1.4.0-windows | 打开记账.cmd / start.cmd | [Windows 使用说明](docs/Windows.md) |
+| macOS | 1.4.1-macos | 打开记账.command / start.command | [macOS 使用说明](docs/macOS.md) |
+| Linux | 1.4.1-linux | sh start.sh | [Linux 使用说明](docs/Linux.md) |
+| Windows | 1.4.1-windows | 打开记账.cmd / start.cmd | [Windows 使用说明](docs/Windows.md) |
 
 **Windows 和 Linux 版默认连接原生 SQL Server，无需 Docker。分别按系统说明安装 SQL Server 并设置 SQL_PASSWORD；SQL_USE_DOCKER=0 会彻底禁用 Docker 调用。Windows 也无需 WSL。**
 
-共同核心版本是 1.4.0，平台版本号在各平台包的 VERSION、release.json、启动窗口、界面底部和 /api/health 中标识。这是需要安装 Node.js 和连接 SQL Server 的源码版本，不是免安装二进制软件。
+共同核心版本是 1.4.1，平台版本号在各平台包的 VERSION、release.json、启动窗口、界面底部和 /api/health 中标识。这是需要安装 Node.js 和连接 SQL Server 的源码版本，不是免安装二进制软件。
 
 请先按自己的系统阅读对应说明。已有 SQL Server 不强制使用 Docker。复制项目不等于迁移旧账单，详见 [数据与迁移](docs/使用与数据.md)；改动记录见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -184,7 +184,7 @@ montra/
 
 ## 分享或发布源码
 
-源码打包需要 Python 3.9+（只使用标准库；普通使用不需要 Python）。运行 `npm run package` 同时生成 `dist/montra-1.4.0-source.zip`、`dist/montra-1.4.0-macos.zip`、`dist/montra-1.4.0-linux.zip`、`dist/montra-1.4.0-windows.zip`。打包采用固定文件白名单，不包括 `.env`、个人账单、数据库备份、截图、node_modules 或 Git 历史。解压后是一个完整项目文件夹，首次使用需要安装依赖和配置自己的数据库。
+源码打包需要 Python 3.9+（只使用标准库；普通使用不需要 Python）。运行 `npm run package` 同时生成 `dist/montra-1.4.1-source.zip`、`dist/montra-1.4.1-macos.zip`、`dist/montra-1.4.1-linux.zip`、`dist/montra-1.4.1-windows.zip`。打包采用固定文件白名单，不包括 `.env`、个人账单、数据库备份、截图、node_modules 或 Git 历史。解压后是一个完整项目文件夹，首次使用需要安装依赖和配置自己的数据库。
 
 发布到 GitHub 时上传源码文件即可，不要上传数据库、密码或账单。仓库内容由 `.gitignore` 排除本机配置与生成文件。GitHub Actions 自动执行基础测试。
 

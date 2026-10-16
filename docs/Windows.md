@@ -1,8 +1,8 @@
 # Montra Windows 使用说明（无需 Docker）
 
-版本号：**1.4.0-windows**；共同核心版本：**1.4.0**。Windows 版默认直接连接 SQL Server，不调用、不要求安装 Docker。Mac 和 Linux 保持各自的环境方案。
+版本号：**1.4.1-windows**；共同核心版本：**1.4.1**。Windows 版默认直接连接 SQL Server，不调用、不要求安装 Docker。Mac 和 Linux 保持各自的环境方案。
 
-这是需要安装 Node.js 和数据库的源码版本，不是免安装 EXE。解压 `montra-1.4.0-windows.zip` 并保留完整文件夹。首次安装需联网；完成后可以本机使用。
+这是需要安装 Node.js 和数据库的源码版本，不是免安装 EXE。解压 `montra-1.4.1-windows.zip` 并保留完整文件夹。首次安装需联网；完成后可以本机使用。
 
 ## 一、安装运行环境
 
@@ -51,7 +51,7 @@ Test-NetConnection 127.0.0.1 -Port 1433
 在 PowerShell 进入解压目录（路径换成自己的；本次修改的源码目录是 `C:\zhuomian\meC\Montra`）：
 
 ```powershell
-Set-Location "C:\你的解压路径\montra-1.4.0-windows"
+Set-Location "C:\你的解压路径\montra-1.4.1-windows"
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
 notepad .env
 ```
@@ -103,7 +103,7 @@ npm.cmd run db:init
 启动后浏览器进入 `http://127.0.0.1:3210`；若修改了 `.env` 的 `PORT`，使用新端口。启动窗口和页面底部均显示版本，`/api/health` 可查看版本信息。
 
 1. 页面显示“账本已连接”后，选择收入或支出，输入正数金额（最多两位小数）、日期、类别和备注，点“保存账单”。
-2. 通过月份、类别、收支类型或搜索框查找记录。“所有月份”可以查看跨月记录；账单每页 50 笔。
+2. 通过月份、类别、收支类型或搜索框查找记录。“所有月份”可以查看跨月记录；账单每页 10 笔。
 3. 页面右上角可以切换中文/English。保存后刷新统计；每 10 秒自动同步数据库变化。
 4. 下方 SQL 工作台可以执行 `SELECT` 查询，按 ⌘/Ctrl+Enter 执行。示例只填入编辑器，不自动执行。
 5. 在账单明细中点击对应记录的“编辑”，修改日期、收入/支出、金额、类别或备注，点击“保存修改”（或 ⌘/Ctrl+Enter）即可更新原记录，列表和统计自动刷新。点击“取消”或按 Esc 放弃修改，不影响左侧新增表单。若记录在编辑期间被其他窗口或 SQL 修改/删除，会提示刷新后重新编辑，避免覆盖新内容。

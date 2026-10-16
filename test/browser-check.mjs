@@ -16,7 +16,7 @@ const server=createApp({
     const allNet=decimal(records.filter(r=>r.riqi<=f.today).reduce((s,r)=>s+(r.type==='i'?1:-1)*cents(r),0));
     const filtered=records.filter(r=>(f.all||(r.riqi>=f.start&&r.riqi<f.end))&&(!f.type||r.type===f.type)&&(!f.category||r.category===f.category)&&(!f.q||`${r.category} ${r.note}`.includes(f.q))).sort((a,b)=>b.riqi.localeCompare(a.riqi)||b.id-a.id);
     const groups=new Map();for(const r of current.filter(r=>r.type==='e'))groups.set(r.category,(groups.get(r.category)||0)+cents(r));
-    return {summary:{income:decimal(income),expense:decimal(expense),net:decimal(income-expense)},allNet,categories:[...new Set(records.map(r=>r.category))],breakdown:[...groups].map(([category,n])=>({category,amount:decimal(n)})),rows:filtered.slice((f.page-1)*50,f.page*50),total:filtered.length,page:f.page,month:f.month,updatedAt:new Date().toISOString()};
+    return {summary:{income:decimal(income),expense:decimal(expense),net:decimal(income-expense)},allNet,categories:[...new Set(records.map(r=>r.category))],breakdown:[...groups].map(([category,n])=>({category,amount:decimal(n)})),rows:filtered.slice((f.page-1)*10,f.page*10),total:filtered.length,page:f.page,month:f.month,updatedAt:new Date().toISOString()};
   },
   insertEntry:async entry=>{validateEntry(entry);await new Promise(r=>setTimeout(r,200));const row={id:Math.max(...records.map(r=>r.id))+1,...entry};records.push(row);return {id:row.id};},setPassword:async()=>{},
   updateEntry:async(id,entry,original)=>{
