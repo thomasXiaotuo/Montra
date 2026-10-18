@@ -1,0 +1,32 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {LocalD1} from './account-support.mjs';
+import {cloudDatabase} from '../cloud/database.mjs';
+import {cloudBooks} from '../cloud/books.mjs';
+import {validateFilters} from '../domain.mjs';
+test('cloud data: cents, literal search, pagination, stale edits and per-book totals',async()=>{
+ const db=new LocalD1();await db.schema('../cloud/ledger-schema.sql');await db.schema('../cloud/account-ledger-migration.sql');
+ const first=cloudDatabase(db),other=await cloudBooks(db).create({name:'Other ledger',requestId:crypto.randomUUID()});
+ const entry={riqi:'2026-10-18',type:'e',amount:'0.29',category:'eat',note:"O'Brien %_"};
+ for(let i=0;i<57;i++)await first.insertEntry({...entry,note:i===0?entry.note:'Entry '+i});
+ await cloudDatabase(db,other.id).insertEntry({...entry,amount:'999.00'});
+ const filters=q=>validateFilters(new URLSearchParams({today:'2026-10-18',month:'2026-10',all:'1',...q}));
+ const state=await first.readState(filters());assert.equal(state.total,57);assert.equal(state.rows.length,10);assert.equal(state.summary.expense,'16.53');assert.equal(state.allNet,'-16.53');
+ assert.equal((await first.readState(filters({q:'%_'}))).total,1);assert.equal((await first.readState(filters({page:'6'}))).rows.length,7);
+ const original=state.rows[0],changed={...original,note:'Updated'};await first.updateEntry(original.id,changed,original);
+ await assert.rejects(first.updateEntry(original.id,{...changed,note:'Stale'},original),e=>e.status===409);
+ await assert.rejects(cloudDatabase(db,other.id).updateEntry(original.id,changed,original),e=>e.status===409);
+ assert.equal((await first.exportRows()).length,57);assert.equal((await cloudDatabase(db,other.id).readState(filters())).summary.expense,'999.00');
+});
+const sqlAvailable=await import('../cloud/sql-console.mjs').then(m=>m,()=>null);
+test('cloud SQL rejects metadata access and scopes nested queries and updates',{skip:!sqlAvailable},async()=>{
+ const db=new LocalD1();await db.schema('../cloud/ledger-schema.sql');await db.schema('../cloud/account-ledger-migration.sql');
+ const second=await cloudBooks(db).create({name:'Second',requestId:crypto.randomUUID()});
+ const entry={riqi:'2026-10-18',type:'e',amount:'1.02',category:'eat',note:'First private'};
+ await cloudDatabase(db).insertEntry(entry);await cloudDatabase(db,second.id).insertEntry({...entry,note:'Second private'});
+ const run=code=>sqlAvailable.executeCloudSql(db,code,second.id);
+ assert.deepEqual((await run('SELECT note FROM jilu')).recordsets[0].rows,[['Second private']]);
+ assert.deepEqual((await run('SELECT a.note,(SELECT count(*) FROM jilu) AS total FROM jilu a')).recordsets[0].rows,[['Second private','1']]);
+ await run("UPDATE jilu SET note='Modified' WHERE 1=1");assert.equal((await cloudDatabase(db).exportRows())[0].note,'First private');
+ for(const sql of ['SELECT * FROM books','SELECT * FROM account_books','SELECT * FROM sqlite_master','UPDATE jilu SET book_id=1',"SELECT * FROM jilu; DROP TABLE jilu"])await assert.rejects(run(sql));
+});

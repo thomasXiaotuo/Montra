@@ -6,7 +6,7 @@ const t=(key,args={})=>translate(key,args,language);
 const errorText=error=>t(messageKey(error?.message||'无法连接，请稍后重试。'));
 let lastState,lastSqlResult,lastOfflineError,formFeedback,sqlFeedback;
 let editingEntry=null,editing=false,editFeedback=null;
-let authenticated=false,passwordEnabled=true,cloudMode=false,authSeq=0,loggingOut=false;
+let authenticated=false,passwordEnabled=true,cloudMode=false,accountMode=false,accountUser=null,authSeq=0,loggingOut=false;
 let accessToken='';try{accessToken=localStorage.getItem('montra.session')||'';}catch{}
 function storeToken(value){accessToken=value;try{if(value)localStorage.setItem('montra.session',value);else localStorage.removeItem('montra.session');}catch{}}
 window.addEventListener('storage',event=>{if(event.key==='montra.session'){accessToken=event.newValue||'';checkAuth();}});
@@ -28,10 +28,10 @@ $('month').value=localToday().slice(0,7);$('date').value=localToday();
 function text(tag,content,className){const el=document.createElement(tag);el.textContent=content;if(className)el.className=className;return el;}
 function message(key,error=false,args={}){formFeedback={key:messageKey(key),error,args};$('form-message').textContent=t(formFeedback.key,args);$('form-message').className=`form-message ${error?'error':'success'}`;}
 function toast(content){$('toast').textContent=t(messageKey(content));$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3500);}
-async function api(path,options={}){const res=await fetch(path,{...options,headers:{...options.headers,'X-Ledger-Language':language,'X-Ledger-Session':accessToken,...(cloudMode?{'X-Ledger-Book':String(selectedBookId)}:{})}});let data;try{data=await res.json();}catch{throw new Error(t('服务暂时不可用，请确认记账程序仍在运行。'));}if(!res.ok){if(res.status===401&&!path.startsWith('/api/auth/'))lockView();throw new Error(data.error||t('操作失败，请重试。'));}return data;}
+async function api(path,options={}){const generation=authSeq;const res=await fetch(path,{...options,headers:{...options.headers,'X-Ledger-Language':language,'X-Ledger-Session':accessToken,...(cloudMode?{'X-Ledger-Book':String(selectedBookId)}:{})}});let data;try{data=await res.json();}catch{throw new Error(t('服务暂时不可用，请确认记账程序仍在运行。'));}if(!path.startsWith('/api/auth/')&&generation!==authSeq)throw new Error('Session changed.');if(!res.ok){if(res.status===423&&accountMode)await showBookUnlock();if(res.status===401&&!path.startsWith('/api/auth/'))lockView();throw new Error(data.error||t('操作失败，请重试。'));}return data;}
 function saveAvailability(){
   const bookBusy=saving||editing||sqlRunning||addingBook;
-  $('book-select').disabled=!authenticated||bookBusy;$('add-book').disabled=!connected||bookBusy;
+  $('book-select').disabled=!authenticated||bookBusy;$('add-book').disabled=(!connected&&!(accountMode&&authenticated))||bookBusy;
   $('save').disabled=!connected||saving;
   $('edit-save').disabled=!connected||editing;
   $('edit-save').textContent=editing?t('正在保存…'):t('保存修改');
@@ -68,7 +68,18 @@ function render(data){
   for(const r of data.breakdown){const b=document.createElement('button');b.type='button';b.className='breakdown-item';b.title=t('筛选 {category}',{category:r.category});const top=document.createElement('div');top.className='breakdown-top';top.append(text('span',r.category),text('span',money(r.amount)));const track=document.createElement('div');track.className='bar-track';const bar=document.createElement('div');bar.className='bar-fill';bar.style.width=`${Number(r.amount)/max*100}%`;track.append(bar);b.append(top,track);b.addEventListener('click',()=>{$('filter-category').value=r.category;$('filter-type').value='e';$('all-months').checked=false;page=1;refresh();$('records-card').scrollIntoView({behavior:'smooth',block:'start'});});$('breakdown').append(b);}
   $('updated').textContent=t('已同步 {time} · 每 10 秒更新',{time:new Date(data.updatedAt).toLocaleTimeString(localeFor(language),{hour:'2-digit',minute:'2-digit',second:'2-digit'})});
 }
-async function refresh(){if(!authenticated)return;const mine=++seq;try{if(cloudMode&&!booksLoaded)await loadBooks();if(mine!==seq||!authenticated)return;const data=await api(`/api/state?${params()}`);if(mine!==seq||!authenticated)return;if(page>1&&!data.rows.length){page=1;return refresh();}render(data);}catch(error){if(mine===seq&&authenticated)showOffline(error);}}
+async function refresh(){
+  if(!authenticated)return;const mine=++seq;
+  try{
+    if(cloudMode&&!booksLoaded)await loadBooks();
+    if(mine!==seq||!authenticated)return;
+    if(accountMode&&!selectedBookId){clearLedgerView();$('account-onboarding').hidden=false;saveAvailability();return;}
+    if(accountMode){const security=await api('/api/book/security');if(mine!==seq||!authenticated)return;passwordEnabled=security.passwordEnabled;accountLabels();if(security.locked){await showBookUnlock();return;}}
+    const data=await api(`/api/state?${params()}`);if(mine!==seq||!authenticated)return;
+    if(page>1&&!data.rows.length){page=1;return refresh();}render(data);
+  }catch(error){if(mine===seq&&authenticated)showOffline(error);}
+}
+
 $('entry-form').addEventListener('submit',async e=>{
   e.preventDefault();if(saving||!connected)return;
   const amount=$('amount').value.trim();if(!/^\d{1,8}(\.\d{1,2})?$/.test(amount)||Number(amount)<=0){message(t('金额必须大于零，最多两位小数。'),true);$('amount').focus();return;}
@@ -124,6 +135,7 @@ setInterval(()=>{if(!document.hidden)refresh();},10000);
 
 function lockView(){
   authSeq++;
+  if(accountMode){selectedBookId=null;try{sessionStorage.removeItem('montra.book');}catch{};for(const id of ['book-unlock-dialog'])if($(id).open)$(id).close();}
   authenticated=false;storeToken('');connected=false;seq++;lastState=null;lastSqlResult=null;lastOfflineError=null;
   document.body.classList.add('locked');
   booksLoaded=false;availableBooks=[];bookDrafts.clear();$('book-select').replaceChildren();
@@ -139,7 +151,11 @@ function lockView(){
   saveAvailability();if(!$('auth-dialog').open)$('auth-dialog').showModal();$('access-password').focus();
 }
 async function authPost(path,data={},signal){
-  if(cloudMode&&(path==='/api/auth/login'||path==='/api/auth/settings'&&data.enabled)){
+  if(accountMode&&path==='/api/auth/settings'){
+    const status=await api('/api/book/security');const next=data.enabled?await newCloudPassword(data.newPassword):null;
+    data={enabled:data.enabled,currentProof:status.passwordEnabled?await cloudPasswordProof(data.currentPassword,status.passwordSalt):undefined,newSalt:next?.salt,newProof:next?.proof};path='/api/book/security';
+  }
+  if(!accountMode&&cloudMode&&(path==='/api/auth/login'||path==='/api/auth/settings'&&data.enabled)){
     const {passwordSalt}=await api('/api/auth/status');
     if(path==='/api/auth/login')data={proof:await cloudPasswordProof(data.password,passwordSalt)};
     else{const next=await newCloudPassword(data.newPassword);data={enabled:true,currentProof:await cloudPasswordProof(data.currentPassword,passwordSalt),newSalt:next.salt,newProof:next.proof};}
@@ -148,7 +164,7 @@ async function authPost(path,data={},signal){
 }
 $('auth-dialog').addEventListener('cancel',e=>e.preventDefault());
 $('auth-form').addEventListener('submit',async e=>{
-  e.preventDefault();$('auth-submit').disabled=true;$('auth-message').textContent='';
+  e.preventDefault();if(accountMode){await cloudflareLogin();return;}$('auth-submit').disabled=true;$('auth-message').textContent='';
   const generation=++authSeq;
   try{
     const result=await authPost('/api/auth/login',{password:$('access-password').value});if(generation!==authSeq)return;storeToken(result.accessToken);$('access-password').value='';$('auth-message').textContent='';
@@ -167,7 +183,7 @@ $('lock').addEventListener('click',async()=>{
 function applyDeploymentMode(){
   if(!cloudMode)return;
   $('book-toolbar').hidden=false;
-  $('password-required').querySelector('option[value="off"]').disabled=true;
+  $('password-required').querySelector('option[value="off"]').disabled=!accountMode;
   $('connect-form').hidden=true;$('export-backup').hidden=false;
   $('database-label').hidden=true;document.body.classList.add('cloud-ledger');
   if(!$('cloud-settings')){
@@ -205,6 +221,7 @@ async function loadBooks(){
   if(!availableBooks.some(book=>book.id===selectedBookId))selectedBookId=result.defaultBookId;
   booksLoaded=true;renderBookOptions();
   try{sessionStorage.setItem('montra.book',String(selectedBookId));}catch{}
+  if(accountMode){$('account-onboarding').hidden=availableBooks.length>0;accountLabels();}
 }
 async function switchBook(id){
   if(saving||editing||sqlRunning||addingBook){$('book-select').value=String(selectedBookId);return;}
@@ -212,6 +229,7 @@ async function switchBook(id){
   if(!availableBooks.some(book=>book.id===id))return;
   bookDrafts.set(selectedBookId,{amount:$('amount').value,date:$('date').value,category:$('category').value,note:$('note').value,type:$('entry-form').elements.type.value,sql:$('sql-code').value});
   selectedBookId=id;seq++;connected=false;lastState=null;lastSqlResult=null;lastOfflineError=null;sqlFeedback=null;formFeedback=null;
+  if(accountMode){$('account-onboarding').hidden=true;if($('book-unlock-dialog').open)$('book-unlock-dialog').close();}
   try{sessionStorage.setItem('montra.book',String(id));}catch{}
   page=1;$('month').value=localToday().slice(0,7);$('all-months').checked=false;$('filter-type').value='';$('search').value='';
   $('filter-category').replaceChildren(new Option(t('全部类别'),''));
@@ -255,11 +273,24 @@ $('password-cancel').addEventListener('click',()=>$('password-dialog').close());
 $('password-form').addEventListener('submit',async e=>{
   e.preventDefault();const enabled=$('password-required').value==='on';if(enabled&&$('new-password').value!==$('confirm-password').value){$('password-message').textContent=t('两次输入的新密码不一致。');return;}
   $('password-save').disabled=true;$('password-cancel').disabled=true;
-  try{const result=await authPost('/api/auth/settings',{enabled,currentPassword:$('current-password').value,newPassword:$('new-password').value});passwordEnabled=result.passwordEnabled;storeToken(result.accessToken);$('lock').hidden=!passwordEnabled;$('password-form').reset();$('password-dialog').close();toast(passwordEnabled?'访问密码已修改，其他登录已失效。':'已关闭访问密码。');}
+  try{const result=await authPost('/api/auth/settings',{enabled,currentPassword:$('current-password').value,newPassword:$('new-password').value});passwordEnabled=result.passwordEnabled;if(!accountMode)storeToken(result.accessToken);$('lock').hidden=accountMode?false:!passwordEnabled;$('password-form').reset();$('password-dialog').close();if(accountMode){booksLoaded=false;await refresh();toast(ui('passwordSaved'));return;}toast(passwordEnabled?'访问密码已修改，其他登录已失效。':'已关闭访问密码。');}
   catch(error){$('password-message').textContent=errorText(error);}
   finally{$('password-save').disabled=false;$('password-cancel').disabled=false;}
 });
-async function checkAuth(){if(loggingOut)return;const generation=++authSeq;try{const status=await api('/api/auth/status');if(generation!==authSeq)return;const firstCloud=status.cloud===true&&!cloudMode;cloudMode=status.cloud===true;applyDeploymentMode();if(firstCloud)$('sql-code').value=examples().list;passwordEnabled=status.passwordEnabled;$('lock').hidden=!passwordEnabled;if(status.authenticated){authenticated=true;if($('auth-dialog').open)$('auth-dialog').close();document.body.classList.remove('locked');refresh();}else lockView();}catch{if(generation===authSeq)lockView();}}
+async function checkAuth(){
+ if(loggingOut)return;const generation=++authSeq;
+ try{const status=await api('/api/auth/status');if(generation!==authSeq)return;
+  const previous=accountUser?.email,firstCloud=status.cloud===true&&!cloudMode;
+  cloudMode=status.cloud===true;accountMode=status.accountLogin===true;accountUser=status.user||null;
+  if(accountMode&&previous&&previous!==accountUser?.email){lockView();return checkAuth();}
+  applyDeploymentMode();if(firstCloud)$('sql-code').value=examples().list;
+  passwordEnabled=status.passwordEnabled;$('lock').hidden=accountMode?false:!passwordEnabled;
+  if(accountMode)accountLabels();
+  if(status.authenticated){authenticated=true;if($('auth-dialog').open)$('auth-dialog').close();document.body.classList.remove('locked');refresh();}
+  else{lockView();if(accountMode)accountLabels();}
+ }catch(error){if(generation===authSeq){lockView();$('auth-message').textContent=errorText(error);}}
+}
+
 checkAuth();
 
 // The SQL editor never auto-executes a template or a draft.
@@ -311,7 +342,7 @@ $('language').addEventListener('change',()=>{
   language=$('language').value;
   try{localStorage.setItem('montra.language',language);}catch{}
   const offlineError=lastOfflineError;
-  applyStaticLanguage();applyDeploymentMode();
+  applyStaticLanguage();applyDeploymentMode();if(accountMode)accountLabels();
   if(lastState)render(lastState);
   if(offlineError)showOffline(offlineError);
   if(formFeedback){const f=formFeedback;const args={...f.args};if(args.error)args.error=t(messageKey(args.error));if(args.type)args.type=t(messageKey(args.type));message(f.key,f.error,args);}
@@ -327,3 +358,80 @@ $('language').addEventListener('change',()=>{
 applyStaticLanguage();
 
 api('/api/health').then(info=>{$('app-version').textContent=`Montra ${info.releaseVersion || info.version}`;$('docker-advice').hidden=!info.dockerEnabled;}).catch(()=>{});
+
+const accountText={
+ login:['使用 Cloudflare 账号登录','Sign in with Cloudflare'],
+ loginHint:['使用自己的账号登录后，才能查看名下账本。软件不会接收你的 Cloudflare 密码。','Sign in to see your own ledgers. This app never receives your Cloudflare password.'],
+ logout:['退出账号 / 切换账号','Sign out / switch account'],security:['账本密码','Ledger password'],
+ lock:['锁定账本','Lock ledger'],unlock:['解锁账本','Unlock ledger'],password:['账本密码','Ledger password'],
+ unlockHint:['账号已登录。请输入这本账本的独立密码。','You are signed in. Enter this ledger’s password.'],
+ empty:['你还没有账本，创建第一本账本开始记账。','You have no ledgers yet. Create your first ledger to get started.'],
+ passwordHint:['密码只用于当前账本，不会修改 Cloudflare 账号。关闭后仍需账号登录。','This password protects only the selected ledger. Cloudflare sign-in is always required.'],
+ passwordSaved:['账本密码已更新。','Ledger password updated.'],cancel:['返回账本列表','Back to ledgers']
+};
+function ui(key){return accountText[key]?.[language==='zh'?0:1]||key;}
+function accountLabels(){
+ if(!accountMode)return;
+ $('auth-title').textContent=ui('login');$('auth-dialog').querySelector('p').textContent=ui('loginHint');
+ $('access-password').required=false;$('access-password').closest('label').hidden=true;
+ $('auth-submit').textContent=ui('login');$('lock').textContent=ui('logout');$('lock').hidden=false;
+ $('change-password').textContent=ui('security');$('password-title').textContent=ui('security');
+ $('change-password').disabled=!selectedBookId||!authenticated;
+ $('password-dialog').querySelector('p.muted').textContent=ui('passwordHint');
+ const labels={ 'password-required':['是否需要账本密码','Require a ledger password'], 'current-password':['当前账本密码','Current ledger password'], 'new-password':['新账本密码（至少 4 个字符）','New ledger password (at least 4 characters)'], 'confirm-password':['再次输入账本密码','Confirm ledger password'] };
+ for(const [id,words]of Object.entries(labels))$(id).closest('label').querySelector('span').textContent=words[language==='zh'?0:1];
+ $('lock-book').hidden=!authenticated||!selectedBookId||!passwordEnabled;
+ $('account-user').textContent=authenticated?(accountUser?.email||''):'';
+ document.querySelectorAll('[data-account-label]').forEach(el=>el.textContent=ui(el.dataset.accountLabel));
+}
+function clearLedgerView(){
+ seq++;connected=false;lastState=null;lastSqlResult=null;lastOfflineError=null;editingEntry=null;
+ for(const id of ['records','breakdown','sql-results','category-list','category-chips'])$(id).replaceChildren();
+ for(const id of ['income','expense','net','all-net'])$(id).textContent='—';
+ $('filter-category').replaceChildren(new Option(language==='zh'?'全部类别':'All categories',''));$('search').value='';
+ for(const id of ['amount','category','note','sql-code','edit-note','edit-category','edit-amount','current-password','new-password','confirm-password','book-unlock-password'])$(id).value='';
+ for(const id of ['sql-database','period','record-count','page-info','updated','form-message','sql-status','filter-description','connection-error'])$(id).textContent='';
+ for(const id of ['edit-dialog','password-dialog'])if($(id).open)$(id).close();
+ $('offline').hidden=true;$('toast').hidden=true;saveAvailability();
+}
+async function cloudflareLogin(){
+ $('auth-submit').disabled=true;
+ try{const status=await api('/api/auth/status');if(!status.user){location.assign(status.loginUrl||'/cdn-cgi/access/login');return;}
+  const result=await authPost('/api/auth/login',{});storeToken(result.accessToken);booksLoaded=false;selectedBookId=null;
+  await checkAuth();
+ }catch(error){$('auth-message').textContent=errorText(error);}finally{$('auth-submit').disabled=false;}
+}
+$('lock').addEventListener('click',async event=>{
+ if(!accountMode)return;event.stopImmediatePropagation();if(loggingOut)return;loggingOut=true;
+ const revoke=authPost('/api/auth/logout',{},AbortSignal.timeout(8000));lockView();accountLabels();
+ try{await revoke;}catch{}finally{loggingOut=false;location.assign('/cdn-cgi/access/logout');}
+},true);
+async function showBookUnlock(){
+ if(!authenticated||!selectedBookId)return;
+ clearLedgerView();bookDrafts.clear();const id=selectedBookId,generation=authSeq;
+ const status=await api('/api/book/security');if(id!==selectedBookId||generation!==authSeq||!authenticated)return;
+ passwordEnabled=status.passwordEnabled;accountLabels();
+ if(!status.locked)return;
+ $('book-unlock-message').textContent='';$('book-unlock-dialog').dataset.book=String(id);
+ if(!$('book-unlock-dialog').open)$('book-unlock-dialog').showModal();$('book-unlock-password').focus();
+}
+$('lock-book').addEventListener('click',async()=>{
+ if(!accountMode||!selectedBookId)return;const pending=authPost('/api/book/lock',{});clearLedgerView();bookDrafts.clear();
+ try{await pending;await showBookUnlock();}catch(error){showOffline(error);}
+});
+$('book-unlock-form').addEventListener('submit',async event=>{
+ event.preventDefault();const id=selectedBookId,generation=authSeq;$('book-unlock-submit').disabled=true;
+ try{const status=await api('/api/book/security');const proof=await cloudPasswordProof($('book-unlock-password').value,status.passwordSalt);
+  if(id!==selectedBookId||generation!==authSeq)return;
+  await authPost('/api/book/unlock',{proof});$('book-unlock-password').value='';$('book-unlock-dialog').close();booksLoaded=false;await refresh();
+ }catch(error){$('book-unlock-message').textContent=errorText(error);}finally{$('book-unlock-submit').disabled=false;}
+});
+function leaveLockedBook(){
+ if($('book-unlock-dialog').open)$('book-unlock-dialog').close();selectedBookId=null;clearLedgerView();
+ $('account-onboarding').hidden=false;accountLabels();
+}
+$('book-unlock-back').addEventListener('click',leaveLockedBook);
+$('book-unlock-dialog').addEventListener('cancel',event=>{event.preventDefault();leaveLockedBook();});
+$('book-unlock-logout').addEventListener('click',()=>$('lock').click());
+window.addEventListener('pageshow',event=>{if(event.persisted){lockView();checkAuth();}});
+document.addEventListener('visibilitychange',()=>{if(accountMode&&document.visibilityState==='visible')checkAuth();});

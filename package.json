@@ -13,6 +13,9 @@
     "test:browser": "node test/browser-check.mjs",
     "launch": "node scripts/launch.mjs",
     "cloud:publish": "node scripts/cloud-setup.mjs",
+    "cloud:upgrade-accounts": "node scripts/upgrade-account-login.mjs",
+    "test:accounts": "node --test test/account-isolation.test.mjs",
+    "test:accounts:browser": "node test/account-browser-check.mjs",
     "test:cloud:browser": "node test/cloud-browser-check.mjs"
   },
   "dependencies": {

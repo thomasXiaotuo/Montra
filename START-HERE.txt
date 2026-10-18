@@ -1,0 +1,21 @@
+﻿Montra 完整项目
+
+本文件夹包含完整源码，不是增量补丁。可以将整个文件夹放到你管理项目的位置，并用 VS Code 打开。
+
+主要目录：
+  public/       网页界面
+  cloud/        Cloudflare Worker、账号权限与数据库迁移
+  scripts/      启动、备份、发布和升级脚本
+  test/         自动测试与浏览器测试
+  docs/         安装和账号登录配置说明
+
+依赖安装：在本文件夹打开终端，运行 npm ci。
+本地 SQL Server 模式：按照 docs/Windows.md 配置数据库后运行 npm start。
+Cloudflare 账号登录模式：按照 docs/account-login.md 配置 Access，再运行 npm run cloud:upgrade-accounts。
+
+注意：新账号登录功能尚未发布到线上。打开 open-ledger.html 会进入原来的线上版本。
+完整源码不包含个人账单、.env、.montra 内的部署凭据或已安装的 node_modules。
+如需继续升级原来的云端部署，应在原项目应用代码更新以保留已有的 .montra 配置；
+也可以在自己的电脑上将原项目的私有配置迁移到本完整文件夹，不能将这些配置分享给别人。
+
+验证结果：39 项自动测试通过、5 项跳过；账号登录和原本地记账两套浏览器流程通过。

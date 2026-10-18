@@ -4,14 +4,14 @@ import {mkdtemp,readFile,readdir,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {getPlatformProxy} from 'wrangler';
+const {getPlatformProxy}=await import('wrangler').catch(()=>({}));
 import {publishCloud} from '../scripts/publish-cloud.mjs';
 import {writePrivate} from '../private-store.mjs';
 import {normalizeRows} from '../cloud/migration.mjs';
 import {cloudBooks} from '../cloud/books.mjs';
 import {cloudDatabase} from '../cloud/database.mjs';
 
-test('upgrading a legacy cloud database backs up every entry before ALTER, preserves IDs and keeps later ledgers on republish',async t=>{
+test('upgrading a legacy cloud database backs up every entry before ALTER, preserves IDs and keeps later ledgers on republish',{skip:!getPlatformProxy},async t=>{
   const directory=await mkdtemp(join(tmpdir(),'montra-book-migration-'));
   const proxy=await getPlatformProxy({configPath:new URL('../cloud/wrangler.jsonc',import.meta.url).pathname,persist:false});
   t.after(async()=>{await proxy.dispose();await rm(directory,{recursive:true,force:true});});

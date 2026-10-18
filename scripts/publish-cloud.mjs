@@ -54,6 +54,7 @@ export async function verifyCloudUrl(url){
   throw new Error('网址已发布，首次启用仍在生效。请稍后点击“重试”，不需要重新注册或迁移账单。');
 }
 export async function publishCloud({password,onProgress=()=>{},run=cli,readRows=personalRows,directory=privateDirectory,ensureSubdomain=ensureCloudSubdomain,verify=verifyCloudUrl}={}){
+  if(readPrivate('cloud-deployment.json',directory)?.accountLoginEnabled)throw new Error('This deployment uses Cloudflare account login. Use npm run cloud:upgrade-accounts instead of the shared-password publishing wizard.');
   protectDirectory(directory);
   let state=readPrivate('cloud-deployment.json',directory)||{suffix:randomBytes(4).toString('hex')};
   const save=()=>writePrivate('cloud-deployment.json',state,directory);

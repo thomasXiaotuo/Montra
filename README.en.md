@@ -1,3 +1,5 @@
+> Account-login update: Cloudflare Access sign-in, per-account ledger ownership, and optional ledger passwords are implemented in this source. Existing cloud deployments must follow [the migration guide](docs/account-login.md); old shared-password instructions below apply only to the previous release/local mode.
+
 # Montra · Personal Ledger
 
 ## Daily cloud use (1.8.1)
