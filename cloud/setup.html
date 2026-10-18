@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Montra · 开始云端记账</title><link rel="stylesheet" href="/setup.css"></head>
+<body><main><a class="brand" href="/">M <span>Montra</span></a><p class="eyebrow">电脑和手机，同一本账</p><h1>开始云端记账</h1><p class="intro">设置一次，以后打开网址就能记账。电脑关机也能用。</p>
+<section id="setup"><div class="step"><span>1</span><div><h2>准备免费账号</h2><p>已有 Cloudflare 账号可直接继续。<a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener noreferrer">注册免费账号 ↗</a></p><p class="small">选择免费方案，无需购买域名或开通付费套餐。</p></div></div>
+<form id="setup-form"><div class="step"><span>2</span><div><h2>设置账本密码</h2><p>手机和电脑使用同一个密码。</p><div id="password-fields"><label>访问密码<input id="password" type="password" minlength="4" maxlength="256" autocomplete="new-password" required placeholder="至少 4 个字符"></label><label>再输入一次<input id="confirm" type="password" minlength="4" maxlength="256" autocomplete="new-password" required></label></div><p id="existing" class="small" hidden>此账本已有密码，更新后继续使用原密码。</p></div></div>
+<p id="error" class="error" role="alert" hidden></p><button id="publish" type="submit">连接 Cloudflare 并启用账本</button><p class="small center">会打开 Cloudflare 官方授权页面。现有账单会先备份，再迁移。</p></form></section>
+<section id="progress" hidden aria-live="polite"><div class="spinner" aria-hidden="true"></div><h2>正在准备你的账本</h2><p id="status"></p><p class="small">如果打开了 Cloudflare 页面，请完成登录并点击允许。完成后回到这里即可。</p></section>
+<section id="done" hidden><div class="success">✓</div><h2>可以开始记账了</h2><p>电脑和手机打开下面的网址，输入你设置的密码即可。</p><a id="ledger-url" class="ledger-url" href="#" target="_blank" rel="noopener noreferrer"></a><button id="copy" type="button">复制网址，发到手机</button><a id="open-ledger" class="button secondary" href="#" target="_blank" rel="noopener noreferrer">打开我的账本 ↗</a><p class="small">本机原账本和迁移备份已保留。以后以这个云端网址里的记录为准。</p></section>
+</main><script src="/setup.js" type="module"></script></body></html>

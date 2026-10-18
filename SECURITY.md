@@ -1,47 +1,72 @@
-# 安全与使用边界
+# Security and local access
 
-Montra 1.5.0 供单人本机使用。网页只绑定 127.0.0.1，不提供公网部署支持。访问密码及安全响应头不能把它变成适合公网使用的多用户服务。
+Montra 1.6.0 is a single-user local ledger. HTTP remains bound to 127.0.0.1. Remote web access and cross-device account synchronization are not enabled by this release.
 
-## 首次升级与登录
+## Password choice
 
-1. 停止旧版服务，在项目目录安装依赖 `npm ci --omit=dev`。
-2. 确认连接的是原账本。在终端运行 `npm run db:secure`。全新数据库须先以管理员执行 `npm run db:init`。
-3. 加固命令先导出当前账单，再创建两个随机密码的专用 SQL 登录：记账账号仅获 dbo.jilu 的 SELECT、INSERT、UPDATE；查询账号仅获 SELECT。它不改动或删除已有账单，不修改原 sa 密码，不禁用其他工具的管理员账号。
-4. 双击本平台入口启动。打开启动窗口提示的 `.montra/初始访问密码.json`，在页面输入其中的 password。访问密码与 SQL Server 密码互不相同。
-5. 登录后点击“修改访问密码”，设置自己的 12–256 字符密码。修改成功会删除初始密码文件，并撤销其他浏览器会话。
+Access settings allows password protection to be enabled or disabled. Enabled access passwords accept 4–256 characters, including abcd, 5656 and ab56. This limit applies to the application access password, not to SQL Server administrator or generated account passwords.
 
-原生/远程 SQL Server 的管理员账号通过 SQL_ADMIN_USER / SQL_ADMIN_PASSWORD 配置；为兼容首次安装，也接受 .env 中的 SQL_USER / SQL_PASSWORD。只有初始化和加固命令使用这些管理权限。Docker 密码回退只在显式管理操作、本机 sa、允许 Docker 时使用。日常网页不会自动提取 sa 密码。
+New installations start without a password. Upgrades retain the existing choice and password. To turn off an existing password, sign in and confirm the current password. To turn protection back on, choose a new password. Saving settings invalidates old sessions. When protection is off, local clients can access the ledger without logging in; Host, Origin, custom-header and cross-site request checks remain active.
 
-完成加固后，.montra/database.json 中的专用凭据用于同一服务器、端口和数据库，优先于 .env 中的旧管理员账号。可从 .env 移除不再需要的管理密码；在仍需 Docker Compose 创建新容器时，Compose 的 SQL_PASSWORD 仍用于新实例初始化。不要删除或重建原容器来更新软件。
+Access passwords use salted scrypt hashes (N=131072, r=8, p=1). Enabled-password login permits at most 5 failed attempts per 15 minutes. Sessions expire after 8 hours and require both an HttpOnly/SameSite=Strict cookie and a separate origin-scoped browser credential. Password changes and restarts invalidate prior sessions. Lock ledger is available while password protection is enabled.
 
-## 访问控制
+Earlier initial-password handoff files migrate to `.montra/initial-access-password.json` without changing the password. Saving access settings removes this handoff. New password-free installations do not create an initial-password file.
 
-账单读取、新增、修改、数据库重连与 SQL 接口均验证服务端会话。登录使用 scrypt（N=131072、r=8、p=1）加盐散列，正常密码只存散列，不存可逆密码。初始密码文件仅为首次交付密码，改密后删除。
+Forgotten password: stop every Montra process, remove only `.montra/auth.json` and any old initial-password handoff, then restart. This resets local access settings to no password and does not remove ledger rows or database connection settings. This requires access to the current OS account's private files.
 
-登录最多允许在 15 分钟内失败 5 次，超过后返回 429；并发密码计算受限。会话同时验证随机 HttpOnly、SameSite=Strict Cookie 和当前网页来源下 localStorage 中的独立随机凭据，仅拿到同一主机其他端口可能接收到的 Cookie 不能调用接口。有效期 8 小时；锁定、改密及重启可使相应会话失效。Cookie 为本机 HTTP 使用，不能据此开放到公网。系统时钟及启动进程属于信任边界。
+## SQL workbench and database permissions
 
-Host、Origin、自定义请求头、Fetch Metadata 和无跨域许可共同拦截跨站请求。静态文件使用固定白名单，不提供 .env、.montra 或源码目录读取接口。账单值和 SQL 输出按文本展示，表单与编辑使用参数化查询。请求体按字节限制并正确处理跨块 UTF-8；请求头、连接数和请求时间也有限制。
+The workbench permits SELECT queries, INSERT and UPDATE on dbo.jilu by default. Its independent database account has only these ledger permissions. The entry forms use another account with the same table-scoped permissions. DELETE, permanent table creation, schema changes and server administration are not granted. SQL write templates only fill the editor and never execute automatically.
 
-## 数据库与 SQL 工作台
+Run `npm run db:secure` after installing dependencies and configuring the original database. A new ledger needs `npm run db:init` first. The security command backs up ledger rows before creating or upgrading dedicated accounts. Upgrading the prior read-only workbench account grants INSERT and UPDATE without changing existing data or the sa password. Provisioning does not disable administrators used by external SQL tools.
 
-应用启动数据库连接时检查有效权限，拒绝 sa、sysadmin、CONTROL SERVER、db_owner、DDL/安全管理权限及不符合用途的写权限。工作台使用独立只读账号，写入保护由 SQL Server 授权实现，不依赖容易绕过的 SQL 关键词过滤。它仍可使用连接内临时表和读取其有权限读取的系统信息，不能通过工作台修改个人账单、建永久表或删除账本。
+Daily app connections reject sa, sysadmin, CONTROL SERVER, db_owner and incompatible DDL/security privileges. Queries and form edits use parameters; the free SQL workbench intentionally executes the user's statements under its table-scoped account. A stale form edit is rejected if another form or SQL statement changed that record.
 
-直接使用外部 SQL 管理工具时，该工具所用账号决定权限；本软件无法限制另一个管理员工具的操作。只有可信管理员才应保留高权限数据库密码。
+SQL_ADMIN_USER/SQL_ADMIN_PASSWORD configure explicit administration commands. Existing SQL_USER/SQL_PASSWORD are accepted for initial setup. Only explicit local administration commands may retrieve a Docker sa password. Runtime credentials for the same server, port and database come from private `.montra/database.json`. Remote SQL connections require encryption and certificate identity validation; loopback connections permit the local certificate.
 
-远程数据库连接要求加密且验证服务器证书；必须为服务器配置客户端信任、名称匹配的证书。仅 127.0.0.1、localhost、::1 的本机连接接受本机自签名证书，没有关闭远程证书验证的网页开关。
+## Files, backups and updates
 
-## 本机文件、备份与更新
+Owned project filenames, launchers, generated user guides and private-state filenames use English/ASCII names. macOS uses launch.command or start.command; Windows uses launch.cmd or start.cmd; Linux uses start.sh. UI text and ledger values can remain Chinese or English.
 
-.montra 目录在 macOS/Linux 设置为 0700，文件为 0600；Windows 使用当前账号 SID 的专用目录 ACL。保存的 SQL 凭据和 JSON 备份依靠操作系统权限保护，并非独立加密保险箱。它们不会发送给浏览器，也不进入源码包或 Git 跟踪。macOS 钥匙串并非本版的跨平台密码存储机制。
+Private `.montra` directories are 0700 and files are 0600 on macOS/Linux. Windows uses the current user's SID in the directory ACL. Existing .env files are restricted when the server or setup commands load them. Local SQL credentials and ledger JSON backups rely on OS permissions; they are not independently encrypted vaults. They must not be shared or committed. Distribution packages exclude .montra, .env, backups, database files and Git history.
 
-`npm run db:backup` 将全部账单导出到 .montra/backups 下的独立 JSON 文件。它保留编号、日期、精确金额、类别和备注，不是 SQL Server 全实例备份，也不包含数据库结构或登录。完整迁移仍使用数据库管理员执行 SQL Server BACKUP/RESTORE。请将重要备份另存到受保护的位置，不要只有同一块磁盘的一份副本。
+`npm run db:backup` exports all ledger rows to protected `.montra/backups/ledger-<timestamp>.json`, preserving IDs, dates, exact decimal amounts and Unicode fields. This is a ledger data export, not a complete SQL Server instance backup. Use an administrator's SQL Server BACKUP/RESTORE for full database migration and store important backup copies on protected storage separate from the working disk.
 
-升级到新目录时，安全地复制自己的 .env 和 .montra，保持其权限；跨电脑迁移不要分享整个 .montra，应在目标电脑重新加固并设置访问密码。不要把 .montra、.env、账单备份、数据库文件、初始密码或浏览器会话值发到聊天、公开仓库或分发包。
+For upgrades on the same computer, privately retain .env and .montra with their permissions. For another server or database, use a separate project folder and provision dedicated accounts again. Copying application files alone does not synchronize ledger records, which remain in SQL Server.
 
-忘记访问密码：停止全部 Montra 进程后，仅删除 .montra/auth.json 和遗留的初始访问密码文件，再启动生成新密码。此操作需要本机文件权限，不删除账单或 SQL 连接配置。
+## Remaining boundaries
 
-## 剩余风险
+A four-character password gives less resistance to guessing than a long one, and disabling it removes the local login barrier. OS administrators, root and malware controlling the current OS account may read private files, steal browser sessions or modify the application. Application settings cannot isolate a fully compromised account.
 
-具有当前系统账号文件/进程访问权限的恶意软件、管理员或 root，仍可能读取凭据、操作 Docker、窃取会话或修改程序。应用密码无法隔离已被完全控制的系统账号。第三方依赖、Node.js、SQL Server、Docker、浏览器和系统均需及时更新。仍应防范恶意浏览器扩展、社会工程和在外部管理工具误执行 SQL。
+Do not directly expose this local server or the SQL port to the public internet. Any future phone/remote-access version needs a defined network access method, HTTPS and an appropriate account/login design. Existing anti-CSRF checks, fixed static-file allowlist, text-only rendering, request limits and dependency maintenance remain in place. Tests and dependency scans are not a guarantee against every vulnerability.
 
-报告漏洞请提供不含真实密码、会话值和账单的最小复现。自动测试与依赖扫描不等于完整渗透测试或绝对安全保证。
+## Optional cloud edition (1.7.0)
+
+The Cloudflare edition requires a ledger password and HTTPS outside loopback development.
+The browser derives a PBKDF2-SHA-256 proof (100,000 iterations, random per-password salt); the Worker stores only SHA-256 of that proof. The derived proof is a login secret and is sent only over HTTPS. Password stretching runs in the browser to fit the free Worker CPU limit. It stores persistent login throttling
+and eight-hour sessions in AUTH_DB, separate from the ledger-only LEDGER_DB. Session cookies are
+HttpOnly, SameSite=Strict and Secure over HTTPS, with an additional origin-scoped proof.
+Passwords accept 4–256 characters as requested; owners choose the password in the local setup wizard.
+Password changes invalidate sessions on other devices via a persistent version.
+The SQL workbench accepts SELECT, INSERT INTO jilu and UPDATE jilu SET, with all statement boundaries
+validated before execution. D1 schema checks enforce valid entries; other database bindings and
+credentials are unavailable to workbench queries. Each successful write commits independently.
+The cloud edition serves only the public UI assets and authenticated APIs. Migration copies
+ledger data after a protected local backup and checks every row. Republishing skips the initial import
+and password setup. It does not continuously synchronize the original SQL Server database.
+Cloudflare account authorization and a deployed smoke test remain necessary before claiming a live service.
+
+## Multiple ledgers (1.8.0)
+
+All ledgers belong to the existing owner sign-in; this is not multi-user registration.
+Ledger IDs are validated per request using X-Ledger-Book, never a mutable server-wide current
+selection. Missing headers select default ledger 1 for compatibility with older open clients.
+Every record read, write and optimistic update is constrained to that ledger. Book metadata,
+creation and backups require authentication. Request IDs deduplicate retried creation requests.
+SQL scripts are parsed before execution and every SELECT source is replaced with a projection
+filtered to the current book. UPDATE receives an additional parenthesized book predicate, and
+INSERT VALUES is assigned the current book. Users cannot set book_id, read other tables,
+or bypass scope through nested SELECTs, unions, joins or schema-qualified table names.
+Generated identifiers use strict SQLite quoting so missing columns fail before later writes.
+Legacy migration saves a protected cloud snapshot before ALTER, assigns existing records to
+default ledger 1, and verifies all original field values. The auth database and passwords stay intact.

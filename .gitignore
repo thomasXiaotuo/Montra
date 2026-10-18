@@ -11,3 +11,7 @@ dist/
 *.ldf
 .env.*
 !.env.example
+
+.wrangler/
+.dev.vars
+.dev.vars.*

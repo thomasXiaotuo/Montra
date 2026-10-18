@@ -1,6 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+if not "%MONTRA_LOCAL%"=="1" if exist "open-ledger.html" (
+  start "" "%~dp0open-ledger.html"
+  exit /b 0
+)
 where node >nul 2>&1
 if errorlevel 1 (
   echo Install Node.js 22 or newer, then reopen this file.

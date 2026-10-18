@@ -1,5 +1,32 @@
 # 版本记录
 
+## 1.8.1
+
+- Package the verified public cloud URL and browser shortcut for macOS, Windows and Linux, without shipping credentials or requiring a local runtime for cloud use.
+- Show explicit cloud sign-in and sign-out actions. Clear local ledger content and drafts immediately on sign-out, including offline, and require sign-in after reload. Other devices keep their own sessions.
+- Guard in-flight authentication and ledger reads against restoring data after sign-out. Document the simple daily flow separately from optional local SQL Server setup.
+
+## 1.8.0
+
+- Add named cloud ledgers under the existing sign-in, with a simple add dialog and selector on computers and phones.
+- Scope entries, edits, categories, totals, pagination and SQL to the selected ledger. Preserve per-ledger drafts while switching and independently remember each tab's selection.
+- Export all named ledgers in one backup. Back up and verify legacy cloud entries before assigning them to the default ledger.
+- Make ledger creation retry-safe and reject duplicate names. Validate SQL syntax trees and scope nested queries, joins, unions, INSERT and UPDATE.
+
+## 1.7.0
+
+- Add an optional Cloudflare Workers + D1 edition with persistent login, isolated auth storage, shared device access, guarded SQL and backup export.
+- Add a browser setup wizard and double-click publishing launchers. Back up and verify the initial SQL Server migration; reuse cloud resources and preserve cloud records on updates.
+- Simplify the cloud interface: Settings menu, mobile Add entry shortcut and collapsed SQL tools. Preserve local optional passwords and existing ledger behavior.
+- Verify real local Worker/D1 behavior, two browser sessions, concurrent edits and publishing recovery without changing personal entries.
+
+## 1.6.0 — 2026-10-16
+
+- SQL 工作台默认恢复 SELECT、INSERT、UPDATE，沿用账单专用权限，不授予数据库管理权限。已有只读账号升级为编辑账号，原账单保持不变。
+- 增加访问密码开关，最短 4 字符；新安装默认无密码，升级保留原设置，关闭已有密码需要验证当前密码。
+- 启动入口统一为 launch.command / start.command、launch.cmd / start.cmd、start.sh；数据说明、初始密码、测试报告及生成说明文件全部采用英文文件名。
+- 旧密码文件只重命名，密码值不变；保留每页 10 条及账单编辑功能。
+
 ## 1.5.0 — 2026-10-16
 
 - 增加访问密码、scrypt 密码散列、限速登录、8 小时会话、锁定与修改密码；修改密码撤销其他会话。
@@ -30,7 +57,7 @@
 ## 1.3.0 — 2026-10-16
 
 - macOS：1.3.0-macos；Linux：1.3.0-linux；Windows：1.3.0-windows。
-- 新增 Linux start.sh、Windows start.cmd / 打开记账.cmd；保留两个 Mac .command 入口。
+- 新增 Linux start.sh、Windows start.cmd / launch.cmd；保留两个 Mac .command 入口。
 - 三个平台共享启动逻辑：安装缺失依赖、读取自定义端口与容器名、复用已有服务、用本平台浏览器打开。
 - Windows 默认采用原生 SQL Server，无需 Docker；SQL_USE_DOCKER=0 彻底禁用 Docker 调用。
 - 远程数据库无需本机 Docker；读取项目根目录 .env，不依赖调用目录。

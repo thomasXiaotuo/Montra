@@ -35,7 +35,7 @@ test('all ledger endpoints require sessions; login/logout/change/expiry are enfo
   assert.equal((await post('/api/sql',{},cookie)).status,401);
   const first=await testLogin(root),second=await testLogin(root);
   const next='A different access password 2026!';
-  assert.equal((await post('/api/auth/password',{currentPassword:TEST_PASSWORD,newPassword:'short'},first)).status,400);
+  assert.equal((await post('/api/auth/password',{currentPassword:TEST_PASSWORD,newPassword:'abc'},first)).status,400);
   const changed=await post('/api/auth/password',{currentPassword:TEST_PASSWORD,newPassword:next},first);assert.equal(changed.status,200);
   assert.equal((await post('/api/sql',{},first)).status,401);assert.equal((await post('/api/sql',{},second)).status,401);
   const newCookie={Cookie:changed.headers.get('set-cookie').split(';')[0],'X-Ledger-Session':(await changed.json()).accessToken};
@@ -57,4 +57,32 @@ test('password guessing is rate-limited and lockout expires',async t=>{
   for(let i=0;i<5;i++)await assert.rejects(auth.login('incorrect',res),e=>e.status===401);
   await assert.rejects(auth.login(TEST_PASSWORD,res),e=>e.status===429);
   now+=15*60*1000+1;await auth.login(TEST_PASSWORD,res);
+});
+
+test('optional password persists and accepts abcd, 5656 and ab56',async t=>{
+  const directory=await mkdtemp(join(tmpdir(),'montra-optional-'));
+  const auth=createAuth({directory});
+  const server=createApp({readState:async()=>({ok:true})},3217,auth);
+  await new Promise(resolve=>server.listen(3217,'127.0.0.1',resolve));
+  t.after(async()=>{await new Promise(resolve=>server.close(resolve));await rm(directory,{recursive:true,force:true});});
+  const root='http://127.0.0.1:3217',state=root+'/api/state?today=2026-10-16&month=2026-10';
+  const post=(path,data,session={})=>fetch(root+path,{method:'POST',headers:{'Content-Type':'application/json','X-Ledger-Request':'1',...session},body:JSON.stringify(data)});
+  const credentials=async response=>({Cookie:response.headers.get('set-cookie').split(';')[0],'X-Ledger-Session':(await response.json()).accessToken});
+  assert.equal(auth.passwordEnabled(),false);assert.equal((await fetch(state)).status,200);
+  assert.equal((await post('/api/auth/settings',null)).status,400);
+  assert.equal((await post('/api/auth/settings',{enabled:'off'})).status,400);
+  assert.equal((await post('/api/auth/settings',{enabled:true,newPassword:'abc'})).status,400);
+  let response=await post('/api/auth/settings',{enabled:true,newPassword:'abcd'});assert.equal(response.status,200);
+  let session=await credentials(response);
+  assert.equal((await fetch(state)).status,401);
+  assert.equal((await post('/api/auth/settings',{enabled:false,currentPassword:'abcd'})).status,401);
+  assert.equal((await post('/api/auth/settings',{enabled:false,currentPassword:'wrong'},session)).status,401);
+  assert.equal((await post('/api/auth/settings',{enabled:false,currentPassword:'abcd'},session)).status,200);
+  assert.equal(createAuth({directory}).passwordEnabled(),false);assert.equal((await fetch(state)).status,200);
+  response=await post('/api/auth/settings',{enabled:true,newPassword:'5656'});session=await credentials(response);
+  assert.equal((await post('/api/auth/login',{password:'abcd'})).status,401);
+  assert.equal((await post('/api/auth/login',{password:'5656'})).status,200);
+  response=await post('/api/auth/password',{currentPassword:'5656',newPassword:'ab56'},session);assert.equal(response.status,200);
+  assert.equal((await post('/api/auth/login',{password:'ab56'})).status,200);
+  assert.equal(createAuth({directory}).passwordEnabled(),true);
 });

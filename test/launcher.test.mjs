@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,copyFile,writeFile,rm,readFile,realpath,access} from 'node:fs/promises';
+import {mkdtemp,mkdir,copyFile,writeFile,rm,readFile,realpath,access,chmod} from 'node:fs/promises';
 import {constants} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,delimiter} from 'node:path';
@@ -15,7 +15,7 @@ test('platform entry works from another directory with Chinese/spaces, loads .en
   await writeFile(join(fixture,'node_modules','mssql','package.json'),'{}');
   await writeFile(join(fixture,'package.json'),'{"version":"1.3.0","type":"module"}');
   await writeFile(join(fixture,'.env'),'PORT=49876\nSQL_SERVER=example.invalid\nSQL_CONTAINER=custom-ledger\nMONTRA_FIXTURE_CONFIG=from-project-env\n');
-  const launchers=process.platform==='win32'?['start.cmd']:process.platform==='darwin'?['start.command','打开记账.command']:['start.sh'];
+  const launchers=process.platform==='win32'?['start.cmd']:process.platform==='darwin'?['start.command','launch.command']:['start.sh'];
   for(const name of ['runtime.mjs','scripts/launch.mjs',...launchers])await copyFile(new URL(`../${name}`,import.meta.url),join(fixture,name));
   const resultPath=join(fixture,'result.json');
   await writeFile(join(fixture,'server.mjs'),`import {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({cwd:process.cwd(),port:process.env.PORT,container:process.env.SQL_CONTAINER,config:process.env.MONTRA_FIXTURE_CONFIG}));process.exitCode=Number(process.env.MONTRA_FIXTURE_EXIT||0);`);
@@ -47,18 +47,32 @@ test('platform entry works from another directory with Chinese/spaces, loads .en
   await assert.rejects(run(),error=>error.code===1);
 });
 
+test('Linux cloud launcher opens a package from a path with spaces without invoking Node', {skip:process.platform==='win32'}, async t=>{
+  const fixture=await realpath(await mkdtemp(join(tmpdir(),'Montra cloud 中文 space ')));
+  t.after(()=>rm(fixture,{recursive:true,force:true}));
+  const bin=join(fixture,'bin');await mkdir(bin);
+  await copyFile(new URL('../start.sh',import.meta.url),join(fixture,'start.sh'));
+  await writeFile(join(fixture,'open-ledger.html'),'<!doctype html><title>fixture</title>');
+  await writeFile(join(bin,'node'),'#!/bin/sh\nexit 91\n');
+  await writeFile(join(bin,'xdg-open'),'#!/bin/sh\nprintf "%s" "$1" > "$MONTRA_LAUNCH_RESULT"\n');
+  await chmod(join(bin,'node'),0o755);await chmod(join(bin,'xdg-open'),0o755);
+  const result=join(fixture,'result.txt');
+  await promisify(execFile)('/bin/sh',[join(fixture,'start.sh')],{cwd:tmpdir(),env:{...process.env,PATH:bin+delimiter+process.env.PATH,MONTRA_LOCAL:'0',MONTRA_LAUNCH_RESULT:result},timeout:5000});
+  assert.equal(await readFile(result,'utf8'),join(fixture,'open-ledger.html'));
+});
+
 test('macOS double-click launchers are executable and propagate child failures', {skip:process.platform!=='darwin'}, async t=>{
   const fixture=await realpath(await mkdtemp(join(tmpdir(),'Montra Mac 中文 space ')));
   t.after(()=>rm(fixture,{recursive:true,force:true}));
   await mkdir(join(fixture,'scripts'));
   const resultPath=join(fixture,'result.json');
   await writeFile(join(fixture,'scripts','launch.mjs'),`import {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({cwd:process.cwd()}));process.exitCode=Number(process.env.MONTRA_FIXTURE_EXIT||0);`);
-  for(const name of ['start.command','打开记账.command']){
+  for(const name of ['start.command','launch.command']){
     const source=new URL(`../${name}`,import.meta.url);
     await access(source,constants.X_OK);
     await copyFile(source,join(fixture,name));
   }
-  for(const name of ['start.command','打开记账.command']){
+  for(const name of ['start.command','launch.command']){
     const run=exit=>{
       const result=promisify(execFile)(join(fixture,name),[],{cwd:tmpdir(),env:{...process.env,MONTRA_FIXTURE_EXIT:String(exit)},timeout:15000});
       result.child.stdin.end();

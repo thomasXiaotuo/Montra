@@ -1,0 +1,13 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "montra-ledger",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-16",
+  "workers_dev": true,
+  "assets": { "directory": "../public", "binding": "ASSETS", "run_worker_first": true },
+  "d1_databases": [
+    { "binding": "LEDGER_DB", "database_name": "montra-ledger", "database_id": "00000000-0000-0000-0000-000000000001" },
+    { "binding": "AUTH_DB", "database_name": "montra-access", "database_id": "00000000-0000-0000-0000-000000000002" }
+  ],
+  "observability": { "enabled": false }
+}

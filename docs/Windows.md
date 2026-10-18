@@ -1,16 +1,31 @@
 # Montra Windows 使用说明（无需 Docker）
 
-版本号：**1.5.0-windows**；共同核心版本：**1.5.0**。Windows 版默认直接连接 SQL Server，不调用、不要求安装 Docker。Mac 和 Linux 保持各自的环境方案。
+## 云端版：日常只需打开、登录
 
-这是需要安装 Node.js 和数据库的源码版本，不是免安装 EXE。解压 `montra-1.5.0-windows.zip` 并保留完整文件夹。首次安装需联网；完成后可以本机使用。
+已连接云端的安装包会附带 `open-ledger.html`。完整解压后，双击它，或运行 `start.cmd`，即可打开同一个云端账本；电脑只需联网和浏览器，无需安装 Node.js、Docker 或 SQL Server。Linux 的脚本入口需要 xdg-open，也可直接用浏览器打开 HTML 文件。
 
-## 1.5.0 安全升级与首次登录
+1. 输入原来的账本密码，点“登录”。这里不需要 Cloudflare 登录。
+2. 通过账本选择框切换账本，或点“＋ 添加账本”。电脑和手机使用同一网址、同一密码，看到同一组账本。
+3. 点右上角“设置 → 退出登录”，清除本浏览器显示的账单和草稿；刷新后仍需登录。其他设备继续保持登录。退出不会删除云端账单。
+4. “设置 → 导出备份”会导出全部账本。更改密码后，其他设备需要重新登录。
 
-已有账本也须先停止旧版服务，在原连接配置下运行 `npm run db:secure`（Windows 可用 `npm.cmd run db:secure`）。它先备份全部账单，再创建记账专用账号及独立只读 SQL 账号，不改动原有记录。全新数据库先执行 `npm run db:init`。
+安装包仅包含公开的账本网址，不含密码、账单、数据库或 Cloudflare 凭据。没有云端连接的通用源码包仍按下方本机步骤运行。
 
-启动后打开终端提示的 `.montra/初始访问密码.json`，用其中的 password 登录。进入页面后可点击“修改访问密码”或“锁定账本”。访问密码与数据库管理密码不同；修改访问密码会删除初始文件并让其他登录失效。
+## 可选：本机 SQL Server 模式
 
-`.montra` 保存受本机权限保护的凭据、密码散列和备份，不能随安装包分享。日常网页拒绝管理员账号；SQL 工作台只查询，新增/修改使用表单。远程 SQL Server 必须配置可验证的证书。使用 `npm run db:backup` 导出账单备份；升级到同一电脑的新目录时安全复制自己的 .env 和 .montra，跨电脑请重新加固。更多内容见 [安全说明](../SECURITY.md)。
+以下内容仅适用于本机模式。已连接云端的日常使用无需执行；需要回到本机时，在终端设置 `MONTRA_LOCAL=1` 后运行系统入口。两种存储不进行持续双向同步。
+
+版本号：**1.8.1-windows**；共同核心版本：**1.8.1**。Windows 版默认直接连接 SQL Server，不调用、不要求安装 Docker。Mac 和 Linux 保持各自的环境方案。
+
+这是需要安装 Node.js 和数据库的源码版本，不是免安装 EXE。解压 `montra-1.8.1-windows.zip` 并保留完整文件夹。首次安装需联网；完成后可以本机使用。
+
+## 1.8.1 升级与访问设置
+
+已有账本也须先停止旧版服务，在原连接配置下运行 `npm run db:secure`（Windows 可用 `npm.cmd run db:secure`）。它先备份全部账单，再创建记账专用账号及独立 SQL 编辑账号，不改动原有记录。全新数据库先执行 `npm run db:init`。
+
+新安装默认不需要访问密码；在“访问设置”选择需要或不需要。需要时密码最低 4 个字符，例如 abcd、5656、ab56。已有账本保留原密码设置；旧初始密码文件改名为 `.montra/initial-access-password.json`，值不变。关闭已有密码需验证当前密码。访问密码与数据库管理密码不同。
+
+`.montra` 保存受本机权限保护的凭据、密码散列和备份，不能随安装包分享。日常网页拒绝管理员账号；SQL 工作台默认允许查询、INSERT 新增和 UPDATE 修改账单，表单也继续可用。远程 SQL Server 必须配置可验证的证书。使用 `npm run db:backup` 导出账单备份；升级到同一电脑的新目录时安全复制自己的 .env 和 .montra，跨电脑请重新加固。更多内容见 [安全说明](../SECURITY.md)。
 
 ## 一、安装运行环境
 
@@ -59,7 +74,7 @@ Test-NetConnection 127.0.0.1 -Port 1433
 在 PowerShell 进入解压目录（路径换成自己的；本次修改的源码目录是 `C:\zhuomian\meC\Montra`）：
 
 ```powershell
-Set-Location "C:\你的解压路径\montra-1.5.0-windows"
+Set-Location "C:\你的解压路径\montra-1.8.1-windows"
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
 notepad .env
 ```
@@ -97,7 +112,7 @@ npm.cmd run db:secure
 
 ## 四、启动与关闭
 
-双击 `打开记账.cmd` 或 `start.cmd`，或在 PowerShell 运行：
+双击 `launch.cmd` 或 `start.cmd`，或在 PowerShell 运行：
 
 ```powershell
 .\start.cmd
@@ -114,7 +129,7 @@ npm.cmd run db:secure
 1. 页面显示“账本已连接”后，选择收入或支出，输入正数金额（最多两位小数）、日期、类别和备注，点“保存账单”。
 2. 通过月份、类别、收支类型或搜索框查找记录。“所有月份”可以查看跨月记录；账单每页 10 笔。
 3. 页面右上角可以切换中文/English。保存后刷新统计；每 10 秒自动同步数据库变化。
-4. 下方 SQL 工作台可以执行 `SELECT` 查询，按 ⌘/Ctrl+Enter 执行。示例只填入编辑器，不自动执行。
+4. 下方 SQL 工作台可以执行 `SELECT` 查询、`INSERT` 新增和 `UPDATE` 修改，按 ⌘/Ctrl+Enter 执行。示例只填入编辑器，不自动执行。
 5. 在账单明细中点击对应记录的“编辑”，修改日期、收入/支出、金额、类别或备注，点击“保存修改”（或 ⌘/Ctrl+Enter）即可更新原记录，列表和统计自动刷新。点击“取消”或按 Esc 放弃修改，不影响左侧新增表单。若记录在编辑期间被其他窗口或 SQL 修改/删除，会提示刷新后重新编辑，避免覆盖新内容。
 6. 月结余和累计盈亏是已录入的收入减支出，统计截至今天；未来日期的记录不计入截至今天的汇总。金额不自动换汇，也不包含记账前的银行余额。
 
@@ -126,7 +141,7 @@ npm.cmd run db:secure
 
 升级：先停止 Montra，备份 `.env` 和 SQL Server 数据库；把新版本解压到新目录，复制自己的 `.env`，连接原数据库，再安装依赖并启动。不要覆盖旧的 `node_modules`，也不要卸载或重建已有 SQL Server 实例。
 
-在 Mac、Linux、Windows 之间迁移时，重新安装相应平台依赖，使用 SQL Server 的 BACKUP/RESTORE 搬运数据库。不要复制运行中的 `.mdf/.ldf`，也不要直接复制 Docker 的虚拟磁盘。详细操作见项目中的 `docs/使用与数据.md`。三个版本不会自动跨电脑同步。
+在 Mac、Linux、Windows 之间迁移时，重新安装相应平台依赖，使用 SQL Server 的 BACKUP/RESTORE 搬运数据库。不要复制运行中的 `.mdf/.ldf`，也不要直接复制 Docker 的虚拟磁盘。详细操作见项目中的 `docs/data-and-migration.md`。三个版本不会自动跨电脑同步。
 
 ## 常见问题
 
@@ -138,5 +153,5 @@ npm.cmd run db:secure
 - **没有自动打开浏览器**：手动打开启动窗口输出的地址即可；Linux 无图形桌面时不会有浏览器窗口。
 - **密码包含 `$` 或 `#`**：在 `.env` 中用单引号包住密码，保持 Docker Compose 和 Node.js 读取一致；不要把真实密码上传或发给他人。
 
-本软件仅供本机单人使用，HTTP 绑定 `127.0.0.1`。SQL 工作台使用只读账号；不要向公网开放界面。
+本软件仅供本机单人使用，HTTP 绑定 `127.0.0.1`。SQL 工作台使用账单专用账号；不要向公网开放界面。
 

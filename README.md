@@ -1,18 +1,24 @@
 # Montra
 
-## 1.5.0 · 三平台版本
+## 云端日常使用（1.8.1）
+
+你的三个系统版本使用同一个云端网址。已连接云端的包解压后，双击 `open-ledger.html` 或系统启动入口即可使用；只需浏览器和网络，无需安装 Node.js、Docker 或 SQL Server。输入原账本密码登录，在“设置 → 退出登录”退出；退出不会删除账单，也不影响其他设备。一个私有登录下可以添加多本账本，电脑和手机共享。Cloudflare 账号只用于管理和发布。
+
+下方 SQL Server 安装步骤仅用于可选的本机模式；本机数据与云端数据不持续双向同步。未连接云端的源码包仍按本机说明安装。详见 [云端说明](docs/cloud.md)。
+
+## 1.8.1 · 三平台版本
 
 | 版本 | 版本号 | 启动入口 | 从环境、安装到使用 |
 |---|---|---|---|
-| macOS | 1.5.0-macos | 打开记账.command / start.command | [macOS 使用说明](docs/macOS.md) |
-| Linux | 1.5.0-linux | sh start.sh | [Linux 使用说明](docs/Linux.md) |
-| Windows | 1.5.0-windows | 打开记账.cmd / start.cmd | [Windows 使用说明](docs/Windows.md) |
+| macOS | 1.8.1-macos | launch.command / start.command | [macOS 使用说明](docs/macOS.md) |
+| Linux | 1.8.1-linux | sh start.sh | [Linux 使用说明](docs/Linux.md) |
+| Windows | 1.8.1-windows | launch.cmd / start.cmd | [Windows 使用说明](docs/Windows.md) |
 
 **Windows 和 Linux 版默认连接原生 SQL Server，无需 Docker。分别按系统说明安装 SQL Server 并设置 SQL_PASSWORD；SQL_USE_DOCKER=0 会彻底禁用 Docker 调用。Windows 也无需 WSL。**
 
-共同核心版本是 1.5.0，平台版本号在各平台包的 VERSION、release.json、启动窗口、界面底部和 /api/health 中标识。这是需要安装 Node.js 和连接 SQL Server 的源码版本，不是免安装二进制软件。
+共同核心版本是 1.8.1，平台版本号在各平台包的 VERSION、release.json、启动窗口、界面底部和 /api/health 中标识。这是需要安装 Node.js 和连接 SQL Server 的源码版本，不是免安装二进制软件。
 
-请先按自己的系统阅读对应说明。已有 SQL Server 不强制使用 Docker。复制项目不等于迁移旧账单，详见 [数据与迁移](docs/使用与数据.md)；改动记录见 [CHANGELOG.md](CHANGELOG.md)。
+请先按自己的系统阅读对应说明。已有 SQL Server 不强制使用 Docker。复制项目不等于迁移旧账单，详见 [数据与迁移](docs/data-and-migration.md)；改动记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 三个入口都读取项目根目录 .env 的 PORT 和 SQL_CONTAINER。使用容器时请先自行打开 Docker；入口只安装缺失运行依赖并尝试启动已有容器，新库初始化需要单独完成。远程 SQL Server 不会尝试启动本机 Docker。
 
@@ -23,16 +29,16 @@
 
 **MIT 开源许可证 · Node.js 22+ · SQL Server 2022 · macOS / Linux / Windows 启动入口**
 
-## 1.5.0 安全升级（已有账本也需要）
+## 1.8.1：可选密码、SQL 编辑和英文文件名
 
-日常网页现在需要访问密码，SQL 工作台默认只读。请先停止旧版，在原账本连接配置下运行：
+访问密码现在可以在“访问设置”中开启或关闭，开启时最低 4 个字符（如 abcd、5656、ab56）。新安装默认不启用密码，升级会保留原设置。SQL 工作台默认允许查询、新增和修改账单。请先停止旧版，在原账本连接配置下运行：
 
 ```sh
 npm ci --omit=dev
 npm run db:secure
 ```
 
-新账本先运行 `npm run db:init`，再运行加固命令。加固会备份全部账单并配置专用低权限账号，不修改原记录。启动后从终端提示的 `.montra/初始访问密码.json` 读取访问密码；登录后可修改密码和锁定账本。`npm run db:backup` 可导出受本机文件权限保护的账单备份。详细权限、远程证书、升级和忘记密码的处理见 [安全说明](SECURITY.md)。`.montra`、`.env`、密码和备份都不能分享。
+新账本先运行 `npm run db:init`，再运行加固命令。加固会备份全部账单并配置专用低权限账号，不修改原记录。使用旧版密码的账本仍可从终端提示的 `.montra/initial-access-password.json` 读取初始密码，之后在“访问设置”选择开启、关闭或修改。`npm run db:backup` 可导出受本机文件权限保护的账单备份。详细权限、远程证书、升级和忘记密码的处理见 [安全说明](SECURITY.md)。`.montra`、`.env`、密码和备份都不能分享。
 
 ## 功能
 
@@ -42,6 +48,7 @@ npm run db:secure
 - 本月截至今天的收入、支出、结余；所有月份截至今天的累计盈亏。
 - 切换月份，按类别、收支类型和备注搜索；账单分页与支出类别分布。
 - 账单逐行编辑：修改日期、收入/支出、金额、类别和备注，保存后同步更新统计；支持取消与并发冲突提示。
+- 访问设置可选密码开关，开启时最低 4 字符；启动脚本、说明及私密文件均使用英文文件名。
 - 保存后立即更新；每 10 秒同步终端对数据库的修改。
 - 内置 SQL 工作台：编辑代码、⌘ / Ctrl + Enter 执行、支持 GO 分批、多结果表格、PRINT、影响行数与报错行号。
 - SQL 示例只填入编辑器，不自动执行。使用字符串值展示结果，不执行结果中的 HTML。
@@ -60,9 +67,9 @@ Apple M 芯片运行 SQL Server 容器需要模拟 x86-64。模拟是否可用�
 
 先停止旧版服务，按上方安全升级步骤执行 `npm run db:secure`，再启动本版。
 
-下载源码并解压，双击 `打开记账.command`。先自行打开 Docker Desktop。入口首次启动会安装运行依赖、尝试启动配置的已有容器，并在浏览器打开 http://127.0.0.1:3210。
+下载源码并解压，双击 `launch.command`。先自行打开 Docker Desktop。入口首次启动会安装运行依赖、尝试启动配置的已有容器，并在浏览器打开 http://127.0.0.1:3210。
 
-使用期间保留启动时打开的终端窗口。按 Control+C 关闭界面服务，不会删除数据库。若 Mac 没有为 `.command` 保留可执行权限，可在项目目录运行 `chmod +x 打开记账.command`。
+使用期间保留启动时打开的终端窗口。按 Control+C 关闭界面服务，不会删除数据库。若 Mac 没有为 `.command` 保留可执行权限，可在项目目录运行 `chmod +x launch.command`。
 
 仅 macOS 默认使用 Docker；其他系统默认请按上方原生数据库说明。已明确设置 SQL_USE_DOCKER=1 的 Docker 环境也可手动启动：
 
@@ -118,7 +125,7 @@ npm start
 
 ## SQL 工作台
 
-工作台使用单独的只读 SQL 账号，可以执行 SELECT 查询和连接内临时表操作；写入限制由数据库权限强制执行。新增账单使用左侧表单，修改账单使用明细中的“编辑”。原来的管理员终端由你自行管理，本软件不会限制外部工具的管理员权限。
+工作台使用单独的账单专用账号，默认允许 SELECT、INSERT 和 UPDATE，可直接查询、新增和修改 dbo.jilu 中的账单。执行后列表和统计自动刷新。表单新增和明细“编辑”也继续可用。原来的管理员终端由你自行管理，本软件不会限制外部工具的管理员权限。
 
 ```sql
 SELECT * FROM dbo.jilu
@@ -162,7 +169,7 @@ node test/sql-live-check.mjs
 
 ```text
 montra/
-├── 打开记账.command      Mac 启动入口
+├── launch.command      Mac 启动入口
 ├── server.mjs           本机 HTTP 服务
 ├── database.mjs         SQL Server 连接和账单查询
 ├── sql-console.mjs      SQL 分批和结果输出
@@ -178,10 +185,26 @@ montra/
 
 ## 分享或发布源码
 
-源码打包需要 Python 3.9+（只使用标准库；普通使用不需要 Python）。运行 `npm run package` 同时生成 `dist/montra-1.5.0-source.zip`、`dist/montra-1.5.0-macos.zip`、`dist/montra-1.5.0-linux.zip`、`dist/montra-1.5.0-windows.zip`。打包采用固定文件白名单，不包括 `.env`、个人账单、数据库备份、截图、node_modules 或 Git 历史。解压后是一个完整项目文件夹，首次使用需要安装依赖和配置自己的数据库。
+源码打包需要 Python 3.9+（只使用标准库；普通使用不需要 Python）。运行 `npm run package` 同时生成 `dist/montra-1.8.1-source.zip`、`dist/montra-1.8.1-macos.zip`、`dist/montra-1.8.1-linux.zip`、`dist/montra-1.8.1-windows.zip`。打包采用固定文件白名单，不包括 `.env`、个人账单、数据库备份、截图、node_modules 或 Git 历史。解压后是一个完整项目文件夹，首次使用需要安装依赖和配置自己的数据库。
 
 发布到 GitHub 时上传源码文件即可，不要上传数据库、密码或账单。仓库内容由 `.gitignore` 排除本机配置与生成文件。GitHub Actions 自动执行基础测试。
 
 贡献指南见 [CONTRIBUTING.md](CONTRIBUTING.md)，本机运行的权限边界见 [SECURITY.md](SECURITY.md)，授权条款见 [LICENSE](LICENSE)。
 
 中英文翻译集中在 `public/i18n.js`，新增语言时应保留相同的字典键和模板参数。自动测试检查字典完整性、语言回退、选择持久化和切换时的草稿保留。
+
+## 免费云端版：电脑和手机共用账本
+
+Mac 双击 `publish-cloud.command`，Windows 双击 `publish-cloud.cmd`，Linux 运行 `publish-cloud.sh`。
+设置页会引导你注册/登录 Cloudflare 免费账号、设置账本密码并迁移账单。
+以后在电脑和手机打开同一个网址即可；电脑关机不影响使用。日常无需安装数据库。
+高级 SQL 工具默认折叠；设置和备份收在“设置”菜单中。
+发布使用你自己的 Cloudflare 免费账号；设置页会引导完成授权。
+详见 [cloud guide](docs/cloud.md)。
+
+## 一个账号，多个账本
+
+云端页面顶部的“账本”下拉框可切换账本；点“＋ 添加账本”，输入名称即可创建并进入空白账本。
+原有记录会保留在“默认账本”。不同账本分别统计收入、支出、余额、类别和记录；每页仍为 10 条。
+电脑和手机可各自选择正在使用的账本。SQL 工作台自动限定在当前账本中，备份按钮会导出所有账本。
+切换时会在当前页面保留各账本未保存的新增草稿；关闭页面后草稿不作为正式记录保存。

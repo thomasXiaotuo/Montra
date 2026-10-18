@@ -4,7 +4,7 @@ import {homedir} from 'node:os';
 import {spawn, execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
-import {root, loadEnvironment, appPort, version, releaseVersion, openBrowser, dockerEnabled} from '../runtime.mjs';
+import {root, loadEnvironment, appPort, version, releaseVersion, openBrowser, dockerEnabled,publishedCloudUrl} from '../runtime.mjs';
 
 const exec = promisify(execFile);
 export function npmCommand(platform = process.platform) {
@@ -48,6 +48,8 @@ async function startExistingDatabase() {
 export async function launch() {
   if (Number(process.versions.node.split('.')[0]) < 22) throw new Error('Node.js 22+ is required. / 请安装 Node.js 22 或更新版本。');
   loadEnvironment();
+  const cloud=process.env.MONTRA_LOCAL==='1'?null:publishedCloudUrl();
+  if(cloud){console.log(`Montra · Cloud ledger / 云端账本\n${cloud}`);openBrowser(cloud);return;}
   const url = `http://127.0.0.1:${appPort()}`;
   console.log(`Montra ${releaseVersion}\n${url}`);
   const running = await probeService(url);

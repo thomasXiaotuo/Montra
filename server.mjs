@@ -1,5 +1,6 @@
 import http from 'node:http';
 import {readFile} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {loadEnvironment,appPort,version,edition,releaseVersion,openBrowser,dockerEnabled} from './runtime.mjs';
 import {detectLanguage,translate} from './public/i18n.js';
@@ -11,7 +12,7 @@ protectEnvironment();
 loadEnvironment();
 const port=appPort();
 const origin=`http://127.0.0.1:${port}`;
-const files=new Map([['/',['index.html','text/html; charset=utf-8']],['/app.js',['app.js','text/javascript; charset=utf-8']],['/style.css',['style.css','text/css; charset=utf-8']],['/i18n.js',['i18n.js','text/javascript; charset=utf-8']]]);
+const files=new Map([['/',['index.html','text/html; charset=utf-8']],['/app.js',['app.js','text/javascript; charset=utf-8']],['/style.css',['style.css','text/css; charset=utf-8']],['/i18n.js',['i18n.js','text/javascript; charset=utf-8']],['/cloud-auth.js',['cloud-auth.js','text/javascript; charset=utf-8']]]);
 const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
 async function body(req) {
   const parts=[];let length=0;
@@ -39,6 +40,7 @@ export function createApp(deps={readState,insertEntry,updateEntry,setPassword,ex
         auth.requireSession(req);
         if(url.pathname==='/api/auth/logout'){auth.logout(req,res);return send(res,200,{ok:true});}
         if(url.pathname==='/api/auth/password'){const data=await body(req);const accessToken=await auth.changePassword(req,res,data?.currentPassword,data?.newPassword);return send(res,200,{ok:true,accessToken});}
+        if(url.pathname==='/api/auth/settings'){return send(res,200,{ok:true,...await auth.configure(req,res,await body(req))});}
         if(url.pathname==='/api/sql') {const data=await body(req);return send(res,200,await deps.executeSql(data?.code));}
         if(url.pathname==='/api/entries') {const entry=validateEntry(await body(req)); return send(res,201,await deps.insertEntry(entry));}
         const editPath=/^\/api\/entries\/([^/]+)$/.exec(url.pathname);
@@ -46,7 +48,7 @@ export function createApp(deps={readState,insertEntry,updateEntry,setPassword,ex
         if(url.pathname==='/api/connect') {const data=await body(req);await deps.setPassword(data.password);return send(res,200,{ok:true});}
       }
       if(req.method==='GET' && url.pathname==='/api/health') return send(res,200,{app:'montra',version,edition,releaseVersion,securityVersion:1,platform:process.platform,dockerEnabled:dockerEnabled()});
-      if(req.method==='GET' && url.pathname==='/api/auth/status')return send(res,200,{authenticated:auth.authenticated(req)});
+      if(req.method==='GET' && url.pathname==='/api/auth/status')return send(res,200,{authenticated:auth.authenticated(req),passwordEnabled:auth.passwordEnabled()});
       if(url.pathname.startsWith('/api/'))auth.requireSession(req);
       if(req.method==='GET' && url.pathname==='/api/state') return send(res,200,await deps.readState(validateFilters(url.searchParams)));
       if(req.method==='GET' && files.has(url.pathname)) {
@@ -64,6 +66,6 @@ export function createApp(deps={readState,insertEntry,updateEntry,setPassword,ex
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)) {
   const auth=createAuth();
-  createApp(undefined,port,auth).listen(port,'127.0.0.1',()=>{console.log(`Montra ${releaseVersion}：${origin}\nInitial access password file / 初始访问密码文件：${auth.initialFile}\nDatabase / 数据库：${process.env.SQL_DATABASE || 'jizhang'} / dbo.jilu\nControl+C to stop / 按 Control+C 关闭服务。`);if(process.env.LEDGER_OPEN_BROWSER==='1') openBrowser(origin);})
+  createApp(undefined,port,auth).listen(port,'127.0.0.1',()=>{console.log(`Montra ${releaseVersion}：${origin}\nPassword protection / 访问密码：${auth.passwordEnabled()?'enabled / 已开启':'disabled / 未开启'}`);if(existsSync(auth.initialFile))console.log(`Initial access password file: ${auth.initialFile}`);console.log(`Database: ${process.env.SQL_DATABASE || 'jizhang'} / dbo.jilu\nControl+C to stop.`);if(process.env.LEDGER_OPEN_BROWSER==='1') openBrowser(origin);})
     .on('error',()=>{console.error('界面启动失败：端口可能已被占用。');process.exitCode=1;});
 }

@@ -27,19 +27,29 @@ export async function provisionDatabase(config,{directory=privateDirectory,persi
     const existing=readPrivate('database.json',directory);
     if(existing){
       if(existing.server!==config.server||existing.port!==config.port||existing.database!==config.database)throw new Error('Private database settings belong to another connection. Use a separate project folder.');
-      for(const [role,readonly]of [['app',false],['console',true]]){
-        const check=new sql.ConnectionPool({...config,...existing[role]});
-        try{await check.connect();await assertLimited(check,{readonly});}finally{await check.close();}
+      if(existing.consoleMode!=='write'){
+        const admin=new sql.ConnectionPool(config);
+        try{
+          await admin.connect();
+          const rows=(await admin.request().query('SELECT id,CONVERT(char(10),riqi,23) AS riqi,type,CONVERT(varchar(30),amount) AS amount,category,note FROM dbo.jilu ORDER BY id')).recordset;
+          if(backup)writePrivate(`ledger-backup-${Date.now()}.json`,{format:'montra-ledger-v1',database:config.database,createdAt:new Date().toISOString(),rows},directory);
+          await admin.request().query(`GRANT INSERT,UPDATE ON OBJECT::dbo.jilu TO ${quoteIdentifier(existing.console.user)};`);
+        }finally{await admin.close();}
       }
+      for(const role of ['app','console']){
+        const check=new sql.ConnectionPool({...config,...existing[role]});
+        try{await check.connect();await assertLimited(check);}finally{await check.close();}
+      }
+      existing.consoleMode='write';writePrivate('database.json',existing,directory);
       return existing;
     }
   }
   const master=new sql.ConnectionPool({...config,database:'master'});
   const ledger=new sql.ConnectionPool(config);
   const suffix=randomBytes(6).toString('hex');
-  const credentials={server:config.server,port:config.port,database:config.database,
+  const credentials={server:config.server,port:config.port,database:config.database,consoleMode:'write',
     app:{user:`montra_app_${suffix}`,password:`Aa1!${randomBytes(24).toString('hex')}`},
-    console:{user:`montra_read_${suffix}`,password:`Aa1!${randomBytes(24).toString('hex')}`}};
+    console:{user:`montra_sql_${suffix}`,password:`Aa1!${randomBytes(24).toString('hex')}`}};
   const created=[];
   try{
     await master.connect();await ledger.connect();
@@ -52,9 +62,9 @@ export async function provisionDatabase(config,{directory=privateDirectory,persi
       await master.request().query(`CREATE LOGIN ${name} WITH PASSWORD=${literal(password)}, CHECK_POLICY=ON;`);
       created.push(user);
       await master.request().query(`DENY VIEW ANY DATABASE TO ${name};`);
-      await ledger.request().query(`CREATE USER ${name} FOR LOGIN ${name}; GRANT ${role==='app'?'SELECT,INSERT,UPDATE':'SELECT'} ON OBJECT::dbo.jilu TO ${name};`);
+      await ledger.request().query(`CREATE USER ${name} FOR LOGIN ${name}; GRANT SELECT,INSERT,UPDATE ON OBJECT::dbo.jilu TO ${name};`);
       const check=new sql.ConnectionPool({...config,user,password});
-      try{await check.connect();await assertLimited(check,{readonly:role==='console'});}finally{await check.close();}
+      try{await check.connect();await assertLimited(check);}finally{await check.close();}
     }
     if(persist)writePrivate('database.json',credentials,directory);
     return credentials;

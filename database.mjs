@@ -14,11 +14,11 @@ let poolPromise;
 let enteredPassword;
 const localDocker = join(homedir(), '.docker', 'bin', process.platform === 'win32' ? 'docker.exe' : 'docker');
 const docker = existsSync(localDocker) ? localDocker : 'docker';
-async function password(user,{administrative=false,readonly=false}={}) {
-  if (!administrative&&!readonly&&enteredPassword) return enteredPassword;
+async function password(user,{administrative=false,workbench=false}={}) {
+  if (!administrative&&!workbench&&enteredPassword) return enteredPassword;
   if (administrative&&process.env.SQL_ADMIN_PASSWORD) return process.env.SQL_ADMIN_PASSWORD;
-  if (readonly&&process.env.SQL_CONSOLE_PASSWORD) return process.env.SQL_CONSOLE_PASSWORD;
-  if (!readonly&&process.env.SQL_PASSWORD) return process.env.SQL_PASSWORD;
+  if (workbench&&process.env.SQL_CONSOLE_PASSWORD) return process.env.SQL_CONSOLE_PASSWORD;
+  if (!workbench&&process.env.SQL_PASSWORD) return process.env.SQL_PASSWORD;
   const local=['127.0.0.1','localhost','::1'].includes(process.env.SQL_SERVER||'127.0.0.1');
   if(!administrative||user.toLowerCase()!=='sa'||!local)throw new UserError('数据库权限不符合安全要求，请运行 npm run db:secure 配置专用账号。',503);
   if (!dockerEnabled()) throw new UserError('无法连接数据库。请确认 SQL Server 已运行并检查 .env 配置；也可以在下方输入数据库密码重试。', 503);
@@ -30,16 +30,16 @@ async function password(user,{administrative=false,readonly=false}={}) {
   } catch {}
   throw new UserError('无法连接数据库。请确认 SQL Server 已运行并检查 .env 配置；也可以在下方输入数据库密码重试。', 503);
 }
-export async function connectionConfig({administrative=false,readonly=false}={}) {
+export async function connectionConfig({administrative=false,workbench=false}={}) {
   const server=process.env.SQL_SERVER||'127.0.0.1',port=Number(process.env.SQL_PORT||1433),database=process.env.SQL_DATABASE||'jizhang';
   const saved=readPrivate('database.json');
   const matches=saved&&saved.server===server&&saved.port===port&&saved.database===database;
   let credential;
-  if(!administrative&&matches){credential={...saved[readonly?'console':'app']};if(!readonly&&enteredPassword)credential.password=enteredPassword;}
+  if(!administrative&&matches){credential={...saved[workbench?'console':'app']};if(!workbench&&enteredPassword)credential.password=enteredPassword;}
   if(!credential){
-    const user=administrative?(process.env.SQL_ADMIN_USER||(process.env.SQL_USER===saved?.app?.user?undefined:process.env.SQL_USER)||'sa'):(readonly?process.env.SQL_CONSOLE_USER:process.env.SQL_USER);
+    const user=administrative?(process.env.SQL_ADMIN_USER||(process.env.SQL_USER===saved?.app?.user?undefined:process.env.SQL_USER)||'sa'):(workbench?process.env.SQL_CONSOLE_USER:process.env.SQL_USER);
     if(!user||(!administrative&&user.toLowerCase()==='sa'))throw new UserError('数据库权限不符合安全要求，请运行 npm run db:secure 配置专用账号。',503);
-    credential={user,password:await password(user,{administrative,readonly})};
+    credential={user,password:await password(user,{administrative,workbench})};
   }
   return {server,port,...credential,database,connectionTimeout:7000,requestTimeout:10000,options:{encrypt:true,trustServerCertificate:['127.0.0.1','localhost','::1'].includes(server),useUTC:true},pool:{max:5,min:0,idleTimeoutMillis:30000}};
 }
@@ -133,10 +133,10 @@ export async function executeSql(code) {
   consoleBusy = true;
   let pool;
   try {
-    pool = new sql.ConnectionPool({...await connectionConfig({readonly:true}),requestTimeout:30000,pool:{max:1,min:0,idleTimeoutMillis:1000}});
+    pool = new sql.ConnectionPool({...await connectionConfig({workbench:true}),requestTimeout:30000,pool:{max:1,min:0,idleTimeoutMillis:1000}});
     pool.on('error',()=>{});
     await pool.connect();
-    await assertLimited(pool,{readonly:true});
+    await assertLimited(pool);
     return await runSql(pool,batches);
   } finally { if (pool) await pool.close().catch(()=>{}); consoleBusy = false; }
 }

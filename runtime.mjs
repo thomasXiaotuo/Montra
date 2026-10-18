@@ -24,10 +24,20 @@ export function dockerEnabled(env = process.env, platform = process.platform) {
   return (env.SQL_USE_DOCKER ?? (platform === 'darwin' ? '1' : '0')) === '1';
 }
 export function browserCommand(url, platform = process.platform) {
-  if (!/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(url)) throw new Error('Invalid local URL');
+  if (!/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(url)&&!/^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev\/?$/.test(url)) throw new Error('Invalid ledger URL');
   if (platform === 'darwin') return ['/usr/bin/open', [url]];
   if (platform === 'win32') return ['rundll32.exe', ['url.dll,FileProtocolHandler', url]];
   return ['xdg-open', [url]];
+}
+export function publishedCloudUrl(directory=root){
+  try{
+    const state=JSON.parse(readFileSync(join(directory,'.montra','cloud-deployment.json'),'utf8'));
+    if(typeof state.verifiedAt==='string'&&/^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev\/?$/.test(state.url||''))return state.url;
+  }catch{}
+  try{
+    const packaged=JSON.parse(readFileSync(join(directory,'release.json'),'utf8'));
+    return /^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev\/?$/.test(packaged.cloudUrl||'')?packaged.cloudUrl:null;
+  }catch{return null;}
 }
 export function openBrowser(url) {
   const [command, args] = browserCommand(url);

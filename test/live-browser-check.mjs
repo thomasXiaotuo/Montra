@@ -154,10 +154,14 @@ try{
   original=await snapshot(2);await pool.request().query('DELETE FROM dbo.jilu WHERE id=2');
   assert.equal((await update(2,original,original)).status,409);
   const {executeSql}=await import('../database.mjs');
+  await page.fill('#sql-code',"UPDATE dbo.jilu SET note=N'Updated from SQL' WHERE id=1;");
+  await page.locator('#sql-code').press('Control+Enter');
+  await page.waitForFunction(()=>document.getElementById('sql-status').textContent.includes('执行完成'));
+  assert.equal((await snapshot(1)).note,'Updated from SQL');
+  const inserted=await executeSql("INSERT INTO dbo.jilu (riqi,type,amount,category,note) OUTPUT INSERTED.id VALUES (GETDATE(),'e',2.50,N'SQL insert',N'isolated');");
+  assert.equal(inserted.ok,true);assert.equal(inserted.recordsets[0].rows.length,1);
   for(const code of [
-    'UPDATE dbo.jilu SET amount=amount WHERE 1=0;',
     'DELETE FROM dbo.jilu WHERE 1=0;',
-    "INSERT INTO dbo.jilu (riqi,type,amount,category) SELECT GETDATE(),'e',1,N'test' WHERE 1=0;",
     'CREATE TABLE dbo.must_not_create (id int);',
     'DROP TABLE dbo.jilu;'
   ]){
@@ -166,7 +170,7 @@ try{
   await assert.rejects(assertLimited(pool),e=>e.status===503);
   const appPool=await getPool();
   await assert.rejects(appPool.request().query('DELETE FROM dbo.jilu WHERE 1=0;'));
-  assert.equal((await pool.request().query('SELECT COUNT(*) AS count FROM dbo.jilu')).recordset[0].count,56);
+  assert.equal((await pool.request().query('SELECT COUNT(*) AS count FROM dbo.jilu')).recordset[0].count,57);
   assert.deepEqual(errors,[]);
   console.log(`PASS (${engine.name()}): real create/edit, all fields, stable IDs, cancellation, cross-month totals, Command/Ctrl+Enter, Unicode/null notes, polling draft retention, atomic conflicts (external update/delete/whitespace), paging and persistence. Personal ledger untouched.`);
 }finally{

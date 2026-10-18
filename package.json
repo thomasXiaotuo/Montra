@@ -1,6 +1,6 @@
 {
   "name": "montra",
-  "version": "1.5.0",
+  "version": "1.8.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,15 +11,19 @@
     "db:backup": "node scripts/backup.mjs",
     "package": "node scripts/package.mjs",
     "test:browser": "node test/browser-check.mjs",
-    "launch": "node scripts/launch.mjs"
+    "launch": "node scripts/launch.mjs",
+    "cloud:publish": "node scripts/cloud-setup.mjs",
+    "test:cloud:browser": "node test/cloud-browser-check.mjs"
   },
   "dependencies": {
-    "mssql": "^12.0.0"
+    "mssql": "^12.0.0",
+    "node-sql-parser": "^5.4.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.56.0"
+    "@playwright/test": "^1.56.0",
+    "wrangler": "^4.151.1"
   },
-  "description": "Montra — Your money, your way. A local ledger with SQL Server and an integrated SQL workbench.",
+  "description": "Montra — Personal ledger with local SQL Server and optional Cloudflare Workers + D1 hosting.",
   "license": "MIT",
   "engines": {
     "node": ">=22"

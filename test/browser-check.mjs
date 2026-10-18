@@ -59,7 +59,7 @@ try{
   fail=true;await page.click('#refresh');await page.waitForFunction(()=>!document.getElementById('offline').hidden);assert.equal(await page.locator('#save').isDisabled(),true);
   assert.equal(await page.locator('#income').textContent(),'3,100.00');
   fail=false;await page.click('#refresh');await page.waitForFunction(()=>document.getElementById('offline').hidden);
-  assert.equal(await page.locator('#sql-example option[value=insert]').count(),0);await page.selectOption('#sql-example','list');assert.match(await page.inputValue('#sql-code'),/SELECT TOP/);assert.equal(records.length,7); // Templates do not execute.
+  assert.equal(await page.locator('#sql-example option[value=insert]').count(),1);await page.selectOption('#sql-example','list');assert.match(await page.inputValue('#sql-code'),/SELECT TOP/);assert.equal(records.length,7); // Templates do not execute.
   await page.fill('#sql-code','SELECT 1 + 1 AS result;');await page.locator('#sql-code').press('Control+Enter');await page.waitForFunction(()=>document.getElementById('sql-status').textContent.includes('执行完成'));
   assert.equal(await page.locator('#sql-results td').textContent(),'2');
   await page.fill('#sql-code','BROKEN');await page.click('#sql-run');await page.waitForFunction(()=>document.getElementById('sql-status').textContent.includes('第 1 行'));
@@ -124,7 +124,7 @@ try{
   // Password changes revoke the other browser session; locking clears rendered ledger data.
   const secondContext=await browser.newContext({locale:'zh-CN'});
   const second=await secondContext.newPage();await second.goto('http://127.0.0.1:3212');await browserLogin(second);
-  await page.click('#change-password');await page.fill('#current-password',TEST_PASSWORD);
+  await page.click('#change-password');await page.screenshot({path:'test-results/access-settings-mobile.png',fullPage:false});await page.fill('#current-password',TEST_PASSWORD);
   await page.fill('#new-password','Changed test password 2026!');await page.fill('#confirm-password','Changed test password 2026!');
   await page.click('#password-save');await page.waitForFunction(()=>!document.getElementById('password-dialog').open);
   await second.click('#refresh');await second.waitForSelector('#auth-dialog[open]');
@@ -137,6 +137,22 @@ try{
   await page.waitForFunction(()=>document.getElementById('connection').textContent.includes('账本已连接'));
   // Restore the fixture password for independent contexts below.
   await page.click('#change-password');await page.fill('#current-password','Changed test password 2026!');
+  await page.fill('#new-password',TEST_PASSWORD);await page.fill('#confirm-password',TEST_PASSWORD);
+  await page.click('#password-save');await page.waitForFunction(()=>!document.getElementById('password-dialog').open);
+  // Password protection can be disabled and later enabled with a four-character password.
+  await page.click('#change-password');await page.selectOption('#password-required','off');
+  await page.fill('#current-password',TEST_PASSWORD);await page.click('#password-save');
+  await page.waitForFunction(()=>!document.getElementById('password-dialog').open);
+  assert.equal(await page.locator('#lock').isVisible(),false);
+  await page.reload();await page.waitForFunction(()=>document.getElementById('connection').textContent.includes('账本已连接'));
+  assert.equal(await page.locator('#auth-dialog').evaluate(el=>el.open),false);
+  await page.click('#change-password');await page.selectOption('#password-required','on');
+  await page.fill('#new-password','abcd');await page.fill('#confirm-password','abcd');await page.click('#password-save');
+  await page.waitForFunction(()=>!document.getElementById('password-dialog').open);
+  await page.click('#lock');await page.waitForSelector('#auth-dialog[open]');
+  await page.fill('#access-password','abcd');await page.click('#auth-submit');
+  await page.waitForFunction(()=>!document.getElementById('auth-dialog').open);
+  await page.click('#change-password');await page.fill('#current-password','abcd');
   await page.fill('#new-password',TEST_PASSWORD);await page.fill('#confirm-password',TEST_PASSWORD);
   await page.click('#password-save');await page.waitForFunction(()=>!document.getElementById('password-dialog').open);
   const intlContext=await browser.newContext({viewport:{width:1440,height:1100},locale:'fr-FR'});
